@@ -54,31 +54,14 @@ const getSprintWorkDays = (sprint: JiraSprint): string[] => {
 };
 
 /**
- * Calculate work days between project start and a given date
- */
-const workDaysBetween = (projectStart: Date, targetDate: Date): number => {
-  let count = 0;
-  const current = new Date(projectStart);
-
-  while (current < targetDate) {
-    if (!isWeekend(current)) {
-      count++;
-    }
-    current.setDate(current.getDate() + 1);
-  }
-
-  return count;
-};
-
-/**
  * Interface for daily capacity tracking
  */
 interface DayCapacity {
   date: string;
   sprintId: number;
-  originalCapacity: number; // Original capacity for this day
-  remainingCapacity: number; // Remaining capacity (decremented during scheduling)
-  sprintDayIndex: number; // 0-9 for a 10-day sprint
+  originalCapacity: number;
+  remainingCapacity: number;
+  sprintDayIndex: number;
 }
 
 /**
@@ -96,7 +79,6 @@ const buildDailyCapacityMap = (
     const sprintCapacity = sprintCapacities.find(sc => sc.sprintId === sprint.id);
 
     workDays.forEach((date, index) => {
-      // Check for daily override
       const dailyOverride = sprintCapacity?.dailyCapacities?.find(dc => dc.date === date);
       const capacity = dailyOverride?.capacity ?? maxDevelopers;
 
@@ -127,14 +109,12 @@ const calculateWorstCase = (epic: JiraEpic, tickets: JiraTicket[]): number => {
  */
 const sortEpics = (epics: JiraEpic[], worstCaseMap: Map<string, number>): JiraEpic[] => {
   return [...epics].sort((a, b) => {
-    // Primary: priorityOverride (lower = higher priority)
     if (a.priorityOverride !== undefined && b.priorityOverride !== undefined) {
       return a.priorityOverride - b.priorityOverride;
     }
     if (a.priorityOverride !== undefined) return -1;
     if (b.priorityOverride !== undefined) return 1;
 
-    // Secondary: worst-case duration (longest first)
     const aWorst = worstCaseMap.get(a.key) ?? 0;
     const bWorst = worstCaseMap.get(b.key) ?? 0;
     return bWorst - aWorst;
@@ -148,17 +128,6 @@ const getEpicTicketsSorted = (epicKey: string, tickets: JiraTicket[]): JiraTicke
   return tickets
     .filter(t => t.epicKey === epicKey)
     .sort((a, b) => a.timelineOrder - b.timelineOrder);
-};
-
-/**
- * Find the sprint that contains a given day index
- */
-const findSprintForDayIndex = (
-  dayIndex: number,
-  dailyCapacity: DayCapacity[]
-): { sprint: DayCapacity; globalIndex: number } | null => {
-  if (dayIndex >= dailyCapacity.length) return null;
-  return { sprint: dailyCapacity[dayIndex], globalIndex: dayIndex };
 };
 
 /**
@@ -177,7 +146,7 @@ const findNextSprintStart = (
     }
   }
 
-  return dailyCapacity.length; // No more sprints
+  return dailyCapacity.length;
 };
 
 /**
@@ -201,85 +170,45 @@ const getSprintEndDayIndex = (
 
 /**
  * Slot an epic's tickets linearly, respecting sprint boundaries
- * Returns the scheduled tickets
  */
 const slotEpicLinear = (
   epic: JiraEpic,
   tickets: JiraTicket[],
   dailyCapacity: DayCapacity[],
-  startDayIndex: number,
-  projectStartDate: Date
+  startDayIndex: number
 ): ScheduledTicket[] => {
   const scheduledTickets: ScheduledTicket[] = [];
   const epicTickets = getEpicTicketsSorted(epic.key, tickets);
-
-  console.log(`\n=== SLOTTING EPIC: ${epic.key} ===`);
-  console.log(`Tickets in order:`, epicTickets.map(t => `${t.key}(${t.devDays}d)`).join(', '));
-  console.log(`Starting at day index: ${startDayIndex}`);
-  console.log(`Total days in capacity map: ${dailyCapacity.length}`);
-
-  // Log sprint boundaries
-  const sprintBoundaries: { sprintId: number; startIdx: number; endIdx: number }[] = [];
-  let currentSprintId = dailyCapacity[0]?.sprintId;
-  let sprintStartIdx = 0;
-  for (let i = 0; i < dailyCapacity.length; i++) {
-    if (dailyCapacity[i].sprintId !== currentSprintId) {
-      sprintBoundaries.push({ sprintId: currentSprintId, startIdx: sprintStartIdx, endIdx: i - 1 });
-      currentSprintId = dailyCapacity[i].sprintId;
-      sprintStartIdx = i;
-    }
-  }
-  if (dailyCapacity.length > 0) {
-    sprintBoundaries.push({ sprintId: currentSprintId, startIdx: sprintStartIdx, endIdx: dailyCapacity.length - 1 });
-  }
-  console.log(`Sprint boundaries:`, sprintBoundaries.map(s => `Sprint ${s.sprintId}: days ${s.startIdx}-${s.endIdx}`).join(', '));
 
   let currentDayIndex = startDayIndex;
   let hasSeenMissingEstimate = false;
 
   for (const ticket of epicTickets) {
-    console.log(`\n--- Processing ticket: ${ticket.key} (${ticket.devDays} days) ---`);
-    console.log(`  Current day index: ${currentDayIndex}`);
-
     // Find a position where the ticket fits within a single sprint
     while (currentDayIndex < dailyCapacity.length) {
       const sprintEndIndex = getSprintEndDayIndex(currentDayIndex, dailyCapacity);
       const remainingDaysInSprint = sprintEndIndex - currentDayIndex + 1;
 
-      console.log(`  Checking: sprintEndIndex=${sprintEndIndex}, remainingDays=${remainingDaysInSprint}, ticketNeeds=${ticket.devDays}`);
-
       if (ticket.devDays <= remainingDaysInSprint) {
-        // Ticket fits in this sprint
-        console.log(`  ✓ Ticket fits! Will start at day ${currentDayIndex}`);
         break;
       }
 
-      // Move to next sprint
-      const nextSprintStart = findNextSprintStart(currentDayIndex, dailyCapacity);
-      console.log(`  ✗ Doesn't fit. Moving to next sprint start: day ${nextSprintStart}`);
-      currentDayIndex = nextSprintStart;
+      currentDayIndex = findNextSprintStart(currentDayIndex, dailyCapacity);
     }
 
-    // Check if we ran out of sprints
     if (currentDayIndex >= dailyCapacity.length) {
-      console.log(`  ✗ Ran out of sprints! Cannot slot ticket ${ticket.key}`);
       break;
     }
 
-    // Track uncertainty: tickets after a missing-estimate ticket are uncertain
     const isUncertain = hasSeenMissingEstimate;
     if (ticket.isMissingEstimate) {
       hasSeenMissingEstimate = true;
     }
 
-    // Schedule the ticket
     const startDay = currentDayIndex;
     const endDay = startDay + ticket.devDays;
     const sprintId = dailyCapacity[currentDayIndex].sprintId;
 
-    console.log(`  → Scheduled: days ${startDay}-${endDay - 1} (sprint ${sprintId})`);
-
-    // Consume capacity (decrement for each day the ticket occupies)
     for (let d = startDay; d < endDay && d < dailyCapacity.length; d++) {
       dailyCapacity[d].remainingCapacity -= 1;
     }
@@ -289,22 +218,18 @@ const slotEpicLinear = (
       startDay,
       endDay,
       sprintId,
-      parallelGroup: 0, // Linear scheduling = all in same group
+      parallelGroup: 0,
       isUncertain,
     });
 
-    // Move to the end of this ticket for the next one
     currentDayIndex = endDay;
-    console.log(`  Next ticket will start checking from day ${currentDayIndex}`);
   }
 
-  console.log(`\n=== FINISHED EPIC: ${epic.key} ===\n`);
   return scheduledTickets;
 };
 
 /**
  * Find the next available slot with capacity for a ticket
- * Returns the day index where the ticket can start
  */
 const findNextAvailableSlot = (
   startFrom: number,
@@ -314,13 +239,11 @@ const findNextAvailableSlot = (
   let dayIndex = startFrom;
 
   while (dayIndex < dailyCapacity.length) {
-    // Check if there's capacity and the ticket fits in the sprint
     if (dailyCapacity[dayIndex].remainingCapacity > 0) {
       const sprintEndIndex = getSprintEndDayIndex(dayIndex, dailyCapacity);
       const remainingDaysInSprint = sprintEndIndex - dayIndex + 1;
 
       if (ticketDevDays <= remainingDaysInSprint) {
-        // Check if all days have capacity
         let allHaveCapacity = true;
         for (let d = dayIndex; d < dayIndex + ticketDevDays && d < dailyCapacity.length; d++) {
           if (dailyCapacity[d].remainingCapacity <= 0) {
@@ -338,7 +261,7 @@ const findNextAvailableSlot = (
     dayIndex++;
   }
 
-  return dailyCapacity.length; // No slot found
+  return dailyCapacity.length;
 };
 
 /**
@@ -374,10 +297,7 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
     throw new Error('No valid sprints with capacity found');
   }
 
-  // Project start date is first sprint start
   const projectStartDate = new Date(sprintsWithCapacity[0].startDate);
-
-  // Build daily capacity map
   const dailyCapacity = buildDailyCapacityMap(sprintsWithCapacity, maxDevelopers, sprintCapacities);
 
   // Calculate worst-case duration for each epic
@@ -386,33 +306,21 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
     worstCaseMap.set(epic.key, calculateWorstCase(epic, tickets));
   }
 
-  // Separate epics by commit type
+  // Separate and sort epics by commit type
   const commitEpics = epics.filter(e => e.commitType === 'commit');
   const stretchEpics = epics.filter(e => e.commitType === 'stretch');
 
-  // Sort each group
   const sortedCommits = sortEpics(commitEpics, worstCaseMap);
   const sortedStretch = sortEpics(stretchEpics, worstCaseMap);
 
-  // Track all scheduled tickets
   const allScheduledTickets: ScheduledTicket[] = [];
-
-  // Track the next available start day for linear slotting
   let nextLinearStartDay = 0;
 
   // Slot commit epics first (linear scheduling)
   for (const epic of sortedCommits) {
-    const scheduled = slotEpicLinear(
-      epic,
-      tickets,
-      dailyCapacity,
-      nextLinearStartDay,
-      projectStartDate
-    );
-
+    const scheduled = slotEpicLinear(epic, tickets, dailyCapacity, nextLinearStartDay);
     allScheduledTickets.push(...scheduled);
 
-    // Update next linear start day to after this epic's last ticket
     if (scheduled.length > 0) {
       const maxEndDay = Math.max(...scheduled.map(t => t.endDay));
       nextLinearStartDay = maxEndDay;
@@ -426,19 +334,12 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
     let hasSeenMissingEstimate = false;
 
     for (const ticket of epicTickets) {
-      // Find next available slot with capacity
-      const startDayIndex = findNextAvailableSlot(
-        currentSearchStart,
-        ticket.devDays,
-        dailyCapacity
-      );
+      const startDayIndex = findNextAvailableSlot(currentSearchStart, ticket.devDays, dailyCapacity);
 
       if (startDayIndex >= dailyCapacity.length) {
-        // No slot found - skip remaining tickets in this epic
         break;
       }
 
-      // Track uncertainty
       const isUncertain = hasSeenMissingEstimate;
       if (ticket.isMissingEstimate) {
         hasSeenMissingEstimate = true;
@@ -447,7 +348,6 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
       const endDay = startDayIndex + ticket.devDays;
       const sprintId = dailyCapacity[startDayIndex].sprintId;
 
-      // Consume capacity
       for (let d = startDayIndex; d < endDay && d < dailyCapacity.length; d++) {
         dailyCapacity[d].remainingCapacity -= 1;
       }
@@ -461,12 +361,10 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
         isUncertain,
       });
 
-      // Next ticket must start after this one (linear within epic)
       currentSearchStart = endDay;
     }
   }
 
-  // Calculate total dev days
   const totalDevDays = allScheduledTickets.reduce((sum, t) => sum + t.devDays, 0);
 
   // Build scheduled epics
@@ -496,7 +394,6 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
     usedCapacity: day.originalCapacity - day.remainingCapacity,
   }));
 
-  // Calculate project end date
   const maxEndDay = Math.max(...allScheduledTickets.map(t => t.endDay), 0);
   const projectEndDate = addWorkDays(projectStartDate, maxEndDay);
 

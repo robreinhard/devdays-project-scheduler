@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { JiraEpic, SprintCapacity, ViewMode } from '@/shared/types';
+import type { JiraEpic, SprintCapacity } from '@/shared/types';
 import { DEFAULT_APP_STATE, QUERY_PARAM_KEYS } from '@/shared/types';
 
 /**
@@ -32,11 +32,9 @@ interface UseAppStateResult {
   epicKeys: string[];
   epics: JiraEpic[];
   sprintCapacities: SprintCapacity[];
-  viewMode: ViewMode;
   viewStartDate?: string;
   viewEndDate?: string;
   maxDevelopers: number;
-  includeWeekends: boolean;
   isLoading: boolean;
 
   // Actions
@@ -44,11 +42,9 @@ interface UseAppStateResult {
   removeEpic: (epicKey: string) => void;
   loadEpicsByKeys: (keys: string[]) => Promise<void>;
   setSprintCapacities: (capacities: SprintCapacity[]) => void;
-  setViewMode: (mode: ViewMode) => void;
   setViewStartDate: (date: string | undefined) => void;
   setViewEndDate: (date: string | undefined) => void;
   setMaxDevelopers: (maxDevs: number) => void;
-  setIncludeWeekends: (include: boolean) => void;
 }
 
 export const useAppState = (): UseAppStateResult => {
@@ -68,11 +64,9 @@ export const useAppState = (): UseAppStateResult => {
   // Parse state from URL
   const epicKeysFromUrl = searchParams.get(QUERY_PARAM_KEYS.EPICS)?.split(',').filter(Boolean) ?? [];
   const sprintCapacities = parseSprintCapacities(searchParams.get(QUERY_PARAM_KEYS.SPRINTS));
-  const viewMode = (searchParams.get(QUERY_PARAM_KEYS.VIEW_MODE) as ViewMode) ?? DEFAULT_APP_STATE.viewMode;
   const viewStartDate = searchParams.get(QUERY_PARAM_KEYS.START_DATE) ?? undefined;
   const viewEndDate = searchParams.get(QUERY_PARAM_KEYS.END_DATE) ?? undefined;
   const maxDevelopers = parseInt(searchParams.get(QUERY_PARAM_KEYS.MAX_DEVS) ?? '', 10) || DEFAULT_APP_STATE.maxDevelopers;
-  const includeWeekends = searchParams.get(QUERY_PARAM_KEYS.INCLUDE_WEEKENDS) === 'true';
 
   // Sync pending ref with URL when URL updates
   if (pendingEpicKeysRef.current.length === 0 ||
@@ -162,10 +156,6 @@ export const useAppState = (): UseAppStateResult => {
     updateUrl(QUERY_PARAM_KEYS.SPRINTS, value);
   }, [updateUrl]);
 
-  const setViewMode = useCallback((mode: ViewMode) => {
-    updateUrl(QUERY_PARAM_KEYS.VIEW_MODE, mode);
-  }, [updateUrl]);
-
   const setViewStartDate = useCallback((date: string | undefined) => {
     updateUrl(QUERY_PARAM_KEYS.START_DATE, date ?? null);
   }, [updateUrl]);
@@ -176,10 +166,6 @@ export const useAppState = (): UseAppStateResult => {
 
   const setMaxDevelopers = useCallback((maxDevs: number) => {
     updateUrl(QUERY_PARAM_KEYS.MAX_DEVS, maxDevs.toString());
-  }, [updateUrl]);
-
-  const setIncludeWeekends = useCallback((include: boolean) => {
-    updateUrl(QUERY_PARAM_KEYS.INCLUDE_WEEKENDS, include ? 'true' : null);
   }, [updateUrl]);
 
   // Load epics from URL when epicKeys change
@@ -193,20 +179,16 @@ export const useAppState = (): UseAppStateResult => {
     epicKeys,
     epics,
     sprintCapacities,
-    viewMode,
     viewStartDate,
     viewEndDate,
     maxDevelopers,
-    includeWeekends,
     isLoading,
     addEpic,
     removeEpic,
     loadEpicsByKeys,
     setSprintCapacities,
-    setViewMode,
     setViewStartDate,
     setViewEndDate,
     setMaxDevelopers,
-    setIncludeWeekends,
   };
 };

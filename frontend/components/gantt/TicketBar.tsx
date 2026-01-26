@@ -38,13 +38,32 @@ const darkenColor = (hex: string, percent: number): string => {
   return `#${toHex(newR)}${toHex(newG)}${toHex(newB)}`;
 };
 
+// Gold color for missing estimates
+const GOLD_COLOR = '#FFD700';
+// Gray color for uncertain tickets (after a missing estimate)
+const GRAY_COLOR = '#9E9E9E';
+
+/**
+ * Get the appropriate color for a ticket based on its uncertainty status
+ */
+const getTicketColor = (ticket: ScheduledTicket, epicColor: string): string => {
+  if (ticket.isMissingEstimate) {
+    return GOLD_COLOR;
+  }
+  if (ticket.isUncertain) {
+    return GRAY_COLOR;
+  }
+  // Normal tickets are 10% darker than their epic color
+  return darkenColor(epicColor, 10);
+};
+
 const TicketBar = ({ ticket, dayWidth, rowHeight, projectStartDate, epicColor }: TicketBarProps) => {
   const [tooltipOpen, setTooltipOpen] = useState(false);
 
   const left = ticket.startDay * dayWidth;
   const width = Math.max((ticket.endDay - ticket.startDay) * dayWidth, 20);
-  // Tickets are 10% darker than their epic color
-  const color = darkenColor(epicColor, 10);
+  // Get color based on ticket status (gold for missing estimate, gray for uncertain)
+  const color = getTicketColor(ticket, epicColor);
 
   // Calculate actual dates
   const startDate = new Date(projectStartDate);
@@ -64,6 +83,22 @@ const TicketBar = ({ ticket, dayWidth, rowHeight, projectStartDate, epicColor }:
       <Typography variant="subtitle2" fontWeight="bold">
         {ticket.key}: {ticket.summary}
       </Typography>
+      {ticket.isMissingEstimate && (
+        <Typography
+          variant="caption"
+          sx={{ color: GOLD_COLOR, fontWeight: 'bold', display: 'block', mt: 0.5 }}
+        >
+          ⚠ Missing estimate - defaulted to {ticket.devDays} points
+        </Typography>
+      )}
+      {ticket.isUncertain && !ticket.isMissingEstimate && (
+        <Typography
+          variant="caption"
+          sx={{ color: 'text.secondary', fontStyle: 'italic', display: 'block', mt: 0.5 }}
+        >
+          Schedule uncertain - follows unestimated ticket
+        </Typography>
+      )}
       <Box sx={{ mt: 1, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 0.5 }}>
         <Typography variant="caption" color="text.secondary">Status:</Typography>
         <Typography variant="caption">{ticket.status}</Typography>

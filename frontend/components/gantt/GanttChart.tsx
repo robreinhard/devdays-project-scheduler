@@ -24,6 +24,8 @@ const EPIC_COLORS = [
 
 interface GanttChartProps {
   data: GanttData;
+  maxDevelopers: number;
+  onDailyCapacityChange?: (dayIndex: number, date: string, capacity: number) => void;
 }
 
 // Width per day in pixels
@@ -33,8 +35,8 @@ const ROW_HEIGHT = 40;
 // Width of the left labels column
 const LABEL_WIDTH = 280;
 
-const GanttChart = ({ data }: GanttChartProps) => {
-  const { epics, sprints, projectStartDate, totalDays, viewMode, includeWeekends } = data;
+const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartProps) => {
+  const { epics, sprints, dailyCapacities, projectStartDate, totalDays } = data;
 
   // Track expanded state for each epic
   const [expandedEpics, setExpandedEpics] = useState<Record<string, boolean>>(() => {
@@ -60,32 +62,21 @@ const GanttChart = ({ data }: GanttChartProps) => {
   // Parse project start date
   const startDate = useMemo(() => new Date(projectStartDate), [projectStartDate]);
 
-  // Calculate total days to display
-  // When weekends excluded, this is work days; otherwise calendar days
+  // Calculate total days to display (always work days - weekends excluded)
   const totalDisplayDays = useMemo(() => {
-    if (includeWeekends) {
-      // Calendar days - use sprint end date
-      if (sprints.length === 0) return totalDays;
-      const lastSprint = sprints[sprints.length - 1];
-      const lastSprintEnd = new Date(lastSprint.endDate);
-      const msPerDay = 24 * 60 * 60 * 1000;
-      return Math.ceil((lastSprintEnd.getTime() - startDate.getTime()) / msPerDay);
-    } else {
-      // Work days - use the max from scheduled data or calculate from sprints
-      if (sprints.length === 0) return totalDays;
-      const lastSprint = sprints[sprints.length - 1];
-      const lastSprintEnd = new Date(lastSprint.endDate);
-      // Count work days between start and last sprint end
-      let workDays = 0;
-      const current = new Date(startDate);
-      while (current < lastSprintEnd) {
-        const day = current.getDay();
-        if (day !== 0 && day !== 6) workDays++;
-        current.setDate(current.getDate() + 1);
-      }
-      return Math.max(totalDays, workDays);
+    if (sprints.length === 0) return totalDays;
+    const lastSprint = sprints[sprints.length - 1];
+    const lastSprintEnd = new Date(lastSprint.endDate);
+    // Count work days between start and last sprint end
+    let workDays = 0;
+    const current = new Date(startDate);
+    while (current < lastSprintEnd) {
+      const day = current.getDay();
+      if (day !== 0 && day !== 6) workDays++;
+      current.setDate(current.getDate() + 1);
     }
-  }, [sprints, startDate, totalDays, includeWeekends]);
+    return Math.max(totalDays, workDays);
+  }, [sprints, startDate, totalDays]);
 
   // Calculate chart dimensions
   const chartWidth = useMemo(() => {
@@ -109,16 +100,13 @@ const GanttChart = ({ data }: GanttChartProps) => {
           <strong>Total Dev Days:</strong> {data.totalDevDays}
         </Typography>
         <Typography variant="body2">
-          <strong>Duration:</strong> {totalDays} {includeWeekends ? 'calendar' : 'work'} days
+          <strong>Duration:</strong> {totalDays} work days
         </Typography>
         <Typography variant="body2">
           <strong>Start:</strong> {projectStartDate}
         </Typography>
         <Typography variant="body2">
           <strong>End:</strong> {data.projectEndDate}
-        </Typography>
-        <Typography variant="body2">
-          <strong>View:</strong> {viewMode === 'best' ? 'Best Case' : 'Worst Case'}
         </Typography>
       </Box>
 
@@ -139,8 +127,8 @@ const GanttChart = ({ data }: GanttChartProps) => {
               borderColor: 'divider',
             }}
           >
-            {/* Header spacer */}
-            <Box sx={{ height: 60, borderBottom: 1, borderColor: 'divider' }} />
+            {/* Header spacer - 4 rows: sprint names, dates, capacity input, usage */}
+            <Box sx={{ height: 108, borderBottom: 1, borderColor: 'divider' }} />
 
             {/* Epic labels */}
             {epics.map((epic, index) => (
@@ -163,10 +151,12 @@ const GanttChart = ({ data }: GanttChartProps) => {
             {/* Timeline header */}
             <TimelineHeader
               sprints={sprints}
+              dailyCapacities={dailyCapacities}
               startDate={startDate}
               totalDays={totalDisplayDays}
               dayWidth={DAY_WIDTH}
-              includeWeekends={includeWeekends}
+              maxDevelopers={maxDevelopers}
+              onDailyCapacityChange={onDailyCapacityChange}
             />
 
             {/* Epic rows with ticket bars */}

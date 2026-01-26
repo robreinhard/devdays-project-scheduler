@@ -1,13 +1,22 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import type { GanttData, SprintCapacity, ViewMode } from '@/shared/types';
+import { useState, useCallback, useRef } from 'react';
+import type { GanttData, SprintCapacity, JiraEpic, JiraTicket, JiraSprint } from '@/shared/types';
+import { scheduleTickets } from '@/shared/scheduler';
+
+interface CachedData {
+  epics: JiraEpic[];
+  tickets: JiraTicket[];
+  sprints: JiraSprint[];
+  epicKeys: string[];
+  sprintIds: number[];
+}
 
 interface UseGanttDataResult {
   ganttData: GanttData | null;
   isLoading: boolean;
   error: string | null;
-  generate: (epicKeys: string[], sprintCapacities: SprintCapacity[], viewMode: ViewMode, maxDevelopers: number, includeWeekends: boolean) => Promise<void>;
+  generate: (epicKeys: string[], sprintCapacities: SprintCapacity[], maxDevelopers: number) => Promise<void>;
   clear: () => void;
 }
 
@@ -16,30 +25,67 @@ export const useGanttData = (): UseGanttDataResult => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Cache JIRA data to avoid refetching when only capacity changes
+  const cachedDataRef = useRef<CachedData | null>(null);
+
   const generate = useCallback(async (
     epicKeys: string[],
     sprintCapacities: SprintCapacity[],
-    viewMode: ViewMode,
-    maxDevelopers: number,
-    includeWeekends: boolean
+    maxDevelopers: number
   ) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch('/api/gantt/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ epicKeys, sprintCapacities, viewMode, maxDevelopers, includeWeekends }),
-      });
+      const sprintIds = sprintCapacities.map(sc => sc.sprintId);
 
-      const data = await response.json();
+      // Check if we need to refetch data
+      const cached = cachedDataRef.current;
+      const needsFetch = !cached ||
+        cached.epicKeys.join(',') !== epicKeys.join(',') ||
+        cached.sprintIds.join(',') !== sprintIds.join(',');
 
-      if (!response.ok) {
-        throw new Error(data.message || data.error || 'Failed to generate GANTT');
+      let epics: JiraEpic[];
+      let tickets: JiraTicket[];
+      let sprints: JiraSprint[];
+
+      if (needsFetch) {
+        // Fetch data from API
+        const response = await fetch('/api/gantt/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ epicKeys, sprintIds }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || data.error || 'Failed to fetch data');
+        }
+
+        epics = data.epics;
+        tickets = data.tickets;
+        sprints = data.sprints;
+
+        // Cache the data
+        cachedDataRef.current = { epics, tickets, sprints, epicKeys, sprintIds };
+      } else {
+        // Use cached data
+        epics = cached.epics;
+        tickets = cached.tickets;
+        sprints = cached.sprints;
       }
 
-      setGanttData(data);
+      // Run scheduling algorithm client-side
+      const result = scheduleTickets({
+        epics,
+        tickets,
+        sprints,
+        sprintCapacities,
+        maxDevelopers,
+      });
+
+      setGanttData(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);
@@ -52,6 +98,7 @@ export const useGanttData = (): UseGanttDataResult => {
   const clear = useCallback(() => {
     setGanttData(null);
     setError(null);
+    cachedDataRef.current = null;
   }, []);
 
   return { ganttData, isLoading, error, generate, clear };

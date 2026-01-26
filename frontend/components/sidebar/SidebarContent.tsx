@@ -6,13 +6,10 @@ import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Checkbox from '@mui/material/Checkbox';
 import { useAppState } from '@/frontend/hooks';
 import EpicSearch from './EpicSearch';
 import EpicKeyPaste from './EpicKeyPaste';
 import SelectedEpics from './SelectedEpics';
-import ViewModeToggle from './ViewModeToggle';
 import SprintCapacityEditor from './SprintCapacityEditor';
 import DateRangePicker from './DateRangePicker';
 
@@ -26,21 +23,17 @@ const SidebarContent = ({ onGenerate, isGenerating = false }: SidebarContentProp
     epics,
     epicKeys,
     sprintCapacities,
-    viewMode,
     viewStartDate,
     viewEndDate,
     maxDevelopers,
-    includeWeekends,
     isLoading,
     addEpic,
     removeEpic,
     loadEpicsByKeys,
     setSprintCapacities,
-    setViewMode,
     setViewStartDate,
     setViewEndDate,
     setMaxDevelopers,
-    setIncludeWeekends,
   } = useAppState();
 
   const canGenerate = epics.length > 0 && sprintCapacities.length > 0;
@@ -56,12 +49,10 @@ const SidebarContent = ({ onGenerate, isGenerating = false }: SidebarContentProp
 
       <Divider />
 
-      {/* View Configuration */}
-      <ViewModeToggle value={viewMode} onChange={setViewMode} />
-
+      {/* Capacity Configuration */}
       <Box>
         <Typography variant="subtitle2" gutterBottom>
-          Max Developers
+          Points Per Day (Dev Capacity)
         </Typography>
         <TextField
           type="number"
@@ -75,26 +66,9 @@ const SidebarContent = ({ onGenerate, isGenerating = false }: SidebarContentProp
             }
           }}
           inputProps={{ min: 1 }}
-          helperText="Max parallel tickets on any given day"
+          helperText="Story points that can be completed per day"
         />
       </Box>
-
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={includeWeekends}
-            onChange={(e) => setIncludeWeekends(e.target.checked)}
-            size="small"
-          />
-        }
-        label="Include Weekends"
-        sx={{ ml: 0 }}
-      />
-
-      <SprintCapacityEditor
-        sprintCapacities={sprintCapacities}
-        onChange={setSprintCapacities}
-      />
 
       <DateRangePicker
         startDate={viewStartDate}

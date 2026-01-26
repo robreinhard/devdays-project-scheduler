@@ -99,6 +99,7 @@ export class JiraClient {
       'status',
       'assignee',
       'parent',
+      'labels',
       this.config.fieldDevDays,
       this.config.fieldTimelineOrder,
     ];
@@ -124,6 +125,7 @@ export class JiraClient {
       'status',
       'assignee',
       'parent',
+      'labels',
       this.config.fieldDevDays,
       this.config.fieldTimelineOrder,
     ].join(',');

@@ -1,5 +1,6 @@
 // JIRA types
 export type {
+  CommitType,
   JiraEpic,
   JiraTicket,
   JiraSprint,
@@ -10,11 +11,12 @@ export type {
 
 // Scheduling types
 export type {
+  DailyCapacity,
+  DayCapacityInfo,
   SprintCapacity,
   SprintWithCapacity,
   ScheduledTicket,
   ScheduledEpic,
-  ViewMode,
   GanttData,
   SchedulingInput,
 } from './scheduling';

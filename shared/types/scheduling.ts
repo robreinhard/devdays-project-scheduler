@@ -1,11 +1,20 @@
 import type { JiraEpic, JiraTicket, JiraSprint } from './jira';
 
 /**
+ * Daily capacity override for PTO tracking
+ */
+export interface DailyCapacity {
+  date: string;     // ISO date string (YYYY-MM-DD)
+  capacity: number; // Points available on this day (0 = day off)
+}
+
+/**
  * Sprint capacity (managed in-app, not in JIRA)
  */
 export interface SprintCapacity {
   sprintId: number;
-  devDaysCapacity: number;
+  devDaysCapacity: number; // Default points per day for this sprint
+  dailyCapacities?: DailyCapacity[]; // Optional per-day overrides for PTO
 }
 
 /**
@@ -20,10 +29,11 @@ export interface SprintWithCapacity extends JiraSprint {
  * Scheduled ticket with computed start/end days
  */
 export interface ScheduledTicket extends JiraTicket {
-  startDay: number;      // Day offset from project start
-  endDay: number;        // Day offset from project start
+  startDay: number;      // Day offset from project start (work days)
+  endDay: number;        // Day offset from project start (work days)
   sprintId: number;      // Which sprint it's slotted in
   parallelGroup: number; // For UI: which "lane" for parallel tickets
+  isUncertain: boolean;  // True if this ticket follows a missing-estimate ticket (show gray)
 }
 
 /**
@@ -37,9 +47,16 @@ export interface ScheduledEpic extends JiraEpic {
 }
 
 /**
- * View mode for the GANTT chart
+ * Daily capacity info for display in the GANTT chart
  */
-export type ViewMode = 'best' | 'worst';
+export interface DayCapacityInfo {
+  date: string;        // ISO date string (YYYY-MM-DD)
+  dayIndex: number;    // Day offset from project start
+  sprintId: number;    // Which sprint this day belongs to
+  totalCapacity: number;    // Original capacity for this day
+  remainingCapacity: number; // Capacity left after scheduling
+  usedCapacity: number;      // Capacity used by scheduled tickets
+}
 
 /**
  * Complete GANTT data returned from the scheduling algorithm
@@ -47,12 +64,11 @@ export type ViewMode = 'best' | 'worst';
 export interface GanttData {
   epics: ScheduledEpic[];
   sprints: SprintWithCapacity[];
+  dailyCapacities: DayCapacityInfo[]; // Per-day capacity info for display
   projectStartDate: string;
   projectEndDate: string;
   totalDevDays: number;
-  totalDays: number; // Work days when weekends excluded, calendar days when included
-  viewMode: ViewMode;
-  includeWeekends: boolean;
+  totalDays: number; // Work days (weekends always excluded)
 }
 
 /**
@@ -63,7 +79,5 @@ export interface SchedulingInput {
   tickets: JiraTicket[];
   sprints: JiraSprint[];
   sprintCapacities: SprintCapacity[];
-  viewMode: ViewMode;
-  maxDevelopers: number;  // Max parallel tickets on any given day
-  includeWeekends: boolean;  // Whether to count weekends as working days
+  maxDevelopers: number;  // Points per day capacity (e.g., 5 devs = 5 pts/day)
 }

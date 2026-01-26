@@ -3,10 +3,19 @@
  * These represent data as it comes from the JIRA API
  */
 
+/**
+ * Commit type for epics - determines scheduling priority
+ * - 'commit': High priority epics that are scheduled first
+ * - 'stretch': Lower priority epics that fill gaps after commits
+ */
+export type CommitType = 'commit' | 'stretch';
+
 export interface JiraEpic {
   key: string;           // e.g., "PROJ-123"
   summary: string;       // Epic title
   status: string;        // e.g., "In Progress"
+  commitType: CommitType; // From labels: "Commit" or "Stretch" (default: stretch)
+  priorityOverride?: number; // From labels like "Commit-1", "Stretch-2" for manual ordering
 }
 
 export interface JiraTicket {
@@ -14,9 +23,10 @@ export interface JiraTicket {
   summary: string;       // Ticket title
   status: string;
   epicKey: string;       // Parent epic key
-  devDays: number;       // Custom field: Story Points / Dev Days
+  devDays: number;       // Custom field: Story Points / Dev Days (default: 5 if missing)
   timelineOrder: number; // Custom field: Linear order within epic
   assignee?: string;
+  isMissingEstimate: boolean; // True if devDays was defaulted (no estimate in JIRA)
 }
 
 export interface JiraSprint {
@@ -44,6 +54,7 @@ export interface JiraIssueResponse {
     parent?: {
       key: string;
     };
+    labels?: string[]; // JIRA labels array
     [key: string]: unknown; // Custom fields accessed by ID
   };
 }

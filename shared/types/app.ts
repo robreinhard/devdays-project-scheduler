@@ -1,4 +1,4 @@
-import type { SprintCapacity, ViewMode } from './scheduling';
+import type { SprintCapacity } from './scheduling';
 
 /**
  * Application state stored in URL query params
@@ -9,9 +9,7 @@ export interface AppState {
   sprintCapacities: SprintCapacity[]; // Selected sprints with their capacities
   viewStartDate?: string;          // Chart X-axis start date (ISO)
   viewEndDate?: string;            // Chart X-axis end date (ISO)
-  viewMode: ViewMode;
-  maxDevelopers: number;           // Max parallel tickets on any given day
-  includeWeekends: boolean;        // Whether weekends count as working days
+  maxDevelopers: number;           // Points per day capacity (e.g., 5 devs = 5 pts/day)
 }
 
 /**
@@ -20,9 +18,7 @@ export interface AppState {
 export const DEFAULT_APP_STATE: AppState = {
   epicKeys: [],
   sprintCapacities: [],
-  viewMode: 'best',
   maxDevelopers: 5,
-  includeWeekends: false,
 };
 
 /**
@@ -31,9 +27,7 @@ export const DEFAULT_APP_STATE: AppState = {
 export const QUERY_PARAM_KEYS = {
   EPICS: 'epics',
   SPRINTS: 'sprints',
-  VIEW_MODE: 'viewMode',
   START_DATE: 'start',
   END_DATE: 'end',
   MAX_DEVS: 'maxDevs',
-  INCLUDE_WEEKENDS: 'weekends',
 } as const;

@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getJiraClient, mapToEpic, mapToTickets, mapToSprints } from '@/backend/jira';
-import { scheduleTickets } from '@/backend/scheduler';
-import type { JiraEpic, JiraTicket, SprintCapacity } from '@/shared/types';
+import type { JiraEpic, JiraTicket, JiraSprint } from '@/shared/types';
 
-interface GenerateRequest {
+interface DataRequest {
   epicKeys: string[];
-  sprintCapacities: SprintCapacity[];
-  maxDevelopers?: number;
+  sprintIds: number[];
+}
+
+export interface GanttDataResponse {
+  epics: JiraEpic[];
+  tickets: JiraTicket[];
+  sprints: JiraSprint[];
 }
 
 export const POST = async (request: NextRequest) => {
   try {
-    const body: GenerateRequest = await request.json();
-    const { epicKeys, sprintCapacities, maxDevelopers = 5 } = body;
+    const body: DataRequest = await request.json();
+    const { epicKeys, sprintIds } = body;
 
     // Validate input
     if (!epicKeys || epicKeys.length === 0) {
@@ -22,9 +26,9 @@ export const POST = async (request: NextRequest) => {
       );
     }
 
-    if (!sprintCapacities || sprintCapacities.length === 0) {
+    if (!sprintIds || sprintIds.length === 0) {
       return NextResponse.json(
-        { error: 'At least one sprint with capacity is required' },
+        { error: 'At least one sprint ID is required' },
         { status: 400 }
       );
     }
@@ -50,7 +54,7 @@ export const POST = async (request: NextRequest) => {
         return NextResponse.json(
           {
             error: `Failed to fetch epic ${epicKey}`,
-            message: `❌ Could not load epic "${epicKey}" - verify it exists`,
+            message: `Could not load epic "${epicKey}" - verify it exists`,
           },
           { status: 404 }
         );
@@ -58,7 +62,6 @@ export const POST = async (request: NextRequest) => {
     }
 
     // Fetch sprints
-    const sprintIds = sprintCapacities.map((sc) => sc.sprintId);
     const sprintsResponse = await client.getSprints();
     const allSprints = mapToSprints(sprintsResponse);
     const selectedSprints = allSprints.filter((s) => sprintIds.includes(s.id));
@@ -67,30 +70,27 @@ export const POST = async (request: NextRequest) => {
       return NextResponse.json(
         {
           error: 'No valid sprints found',
-          message: '❌ None of the selected sprint IDs were found',
+          message: 'None of the selected sprint IDs were found',
         },
         { status: 400 }
       );
     }
 
-    // Run the scheduling algorithm
-    const ganttData = scheduleTickets({
+    const response: GanttDataResponse = {
       epics,
       tickets: allTickets,
       sprints: selectedSprints,
-      sprintCapacities,
-      maxDevelopers,
-    });
+    };
 
-    return NextResponse.json(ganttData);
+    return NextResponse.json(response);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('GANTT generation failed:', error);
+    console.error('GANTT data fetch failed:', error);
 
     return NextResponse.json(
       {
         error: message,
-        message: `❌ GANTT GENERATION FAILED: ${message}`,
+        message: `Data fetch failed: ${message}`,
       },
       { status: 500 }
     );

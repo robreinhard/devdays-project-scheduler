@@ -20,7 +20,7 @@ interface EpicRowProps {
   epic: ScheduledEpic;
   dayWidth: number;
   rowHeight: number;
-  startDate: Date;
+  startDate: string;
   labelOnly?: boolean;
   expanded: boolean;
   onToggleExpanded: () => void;

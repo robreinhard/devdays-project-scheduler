@@ -10,64 +10,24 @@ import type {
   GanttData,
   SchedulingInput,
 } from '@/shared/types';
-
-/**
- * Check if a date is a weekend (Saturday = 6, Sunday = 0)
- */
-const isWeekend = (date: Date): boolean => {
-  const day = date.getDay();
-  return day === 0 || day === 6;
-};
-
-/**
- * Add work days to a date (skips weekends)
- */
-const addWorkDays = (startDate: Date, workDays: number): Date => {
-  const result = new Date(startDate);
-  let remaining = workDays;
-
-  while (remaining > 0) {
-    result.setDate(result.getDate() + 1);
-    if (!isWeekend(result)) {
-      remaining--;
-    }
-  }
-  return result;
-};
+import { parseDate, isWeekend, addWorkDays as addWorkDaysLuxon } from '@/shared/utils/dates';
 
 /**
  * Get all work days in a sprint as an array of date strings
  */
 const getSprintWorkDays = (sprint: JiraSprint): string[] => {
   const workDays: string[] = [];
-  const current = new Date(sprint.startDate);
-  const end = new Date(sprint.endDate);
+  let current = parseDate(sprint.startDate);
+  const end = parseDate(sprint.endDate);
 
   while (current <= end) {
     if (!isWeekend(current)) {
-      workDays.push(current.toISOString().split('T')[0]);
+      workDays.push(current.toISODate()!);
     }
-    current.setDate(current.getDate() + 1);
+    current = current.plus({ days: 1 });
   }
 
   return workDays;
-};
-
-/**
- * Calculate work days between project start and a given date
- */
-const workDaysBetween = (projectStart: Date, targetDate: Date): number => {
-  let count = 0;
-  const current = new Date(projectStart);
-
-  while (current < targetDate) {
-    if (!isWeekend(current)) {
-      count++;
-    }
-    current.setDate(current.getDate() + 1);
-  }
-
-  return count;
 };
 
 /**
@@ -207,8 +167,7 @@ const slotEpicLinear = (
   epic: JiraEpic,
   tickets: JiraTicket[],
   dailyCapacity: DayCapacity[],
-  startDayIndex: number,
-  projectStartDate: Date
+  startDayIndex: number
 ): ScheduledTicket[] => {
   const scheduledTickets: ScheduledTicket[] = [];
   const epicTickets = getEpicTicketsSorted(epic.key, tickets);
@@ -368,14 +327,14 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
       };
     })
     .filter(s => s.startDate && s.endDate)
-    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+    .sort((a, b) => parseDate(a.startDate).toMillis() - parseDate(b.startDate).toMillis());
 
   if (sprintsWithCapacity.length === 0) {
     throw new Error('No valid sprints with capacity found');
   }
 
   // Project start date is first sprint start
-  const projectStartDate = new Date(sprintsWithCapacity[0].startDate);
+  const projectStartDate = parseDate(sprintsWithCapacity[0].startDate);
 
   // Build daily capacity map
   const dailyCapacity = buildDailyCapacityMap(sprintsWithCapacity, maxDevelopers, sprintCapacities);
@@ -406,8 +365,7 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
       epic,
       tickets,
       dailyCapacity,
-      nextLinearStartDay,
-      projectStartDate
+      nextLinearStartDay
     );
 
     allScheduledTickets.push(...scheduled);
@@ -498,14 +456,14 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
 
   // Calculate project end date
   const maxEndDay = Math.max(...allScheduledTickets.map(t => t.endDay), 0);
-  const projectEndDate = addWorkDays(projectStartDate, maxEndDay);
+  const projectEndDate = addWorkDaysLuxon(projectStartDate, maxEndDay);
 
   return {
     epics: scheduledEpics,
     sprints: sprintsWithCapacity,
     dailyCapacities: dailyCapacityInfo,
-    projectStartDate: projectStartDate.toISOString().split('T')[0],
-    projectEndDate: projectEndDate.toISOString().split('T')[0],
+    projectStartDate: projectStartDate.toISODate()!,
+    projectEndDate: projectEndDate.toISODate()!,
     totalDevDays,
     totalDays: maxEndDay,
   };

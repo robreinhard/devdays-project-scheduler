@@ -1,48 +1,20 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import type { SprintWithCapacity, DayCapacityInfo } from '@/shared/types';
+import { parseDate, workDaysBetween } from '@/shared/utils/dates';
 
 interface TimelineHeaderProps {
   sprints: SprintWithCapacity[];
   dailyCapacities?: DayCapacityInfo[];
-  startDate: Date;
+  startDate: string;
   totalDays: number;
   dayWidth: number;
   maxDevelopers: number;
   onDailyCapacityChange?: (dayIndex: number, date: string, capacity: number) => void;
-}
-
-/**
- * Check if a date is a weekend
- */
-const isWeekend = (date: Date): boolean => {
-  const day = date.getDay();
-  return day === 0 || day === 6;
-};
-
-/**
- * Calculate work days between two dates (always excludes weekends)
- */
-const workDaysBetween = (start: Date, end: Date): number => {
-  let workDays = 0;
-  const current = new Date(start);
-  while (current < end) {
-    if (!isWeekend(current)) workDays++;
-    current.setDate(current.getDate() + 1);
-  }
-  return workDays;
-};
-
-const toISODateStringLocal = (date) => {
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-
-    return `${year}-${month}-${day}`;
 }
 
 const TimelineHeader = ({
@@ -54,13 +26,15 @@ const TimelineHeader = ({
   maxDevelopers,
   onDailyCapacityChange
 }: TimelineHeaderProps) => {
+  const startDt = useMemo(() => parseDate(startDate), [startDate]);
+
   // Calculate sprint positions (always excludes weekends)
   const sprintPositions = useMemo(() => {
     return sprints.map((sprint) => {
-      const sprintStart = new Date(sprint.startDate);
-      const sprintEnd = new Date(sprint.endDate);
-      const startDay = workDaysBetween(startDate, sprintStart);
-      const endDay = workDaysBetween(startDate, sprintEnd);
+      const sprintStart = parseDate(sprint.startDate);
+      const sprintEnd = parseDate(sprint.endDate);
+      const startDay = workDaysBetween(startDt, sprintStart);
+      const endDay = workDaysBetween(startDt, sprintEnd);
       const width = (endDay - startDay) * dayWidth;
 
       return {
@@ -71,33 +45,21 @@ const TimelineHeader = ({
         endDay,
       };
     });
-  }, [sprints, startDate, dayWidth]);
+  }, [sprints, startDt, dayWidth]);
 
-  // Calculate total days across all sprints
-  const totalSprintDays = useMemo(() => {
-    if (sprints.length === 0) return totalDays;
-
-    const lastSprint = sprints[sprints.length - 1];
-    const lastSprintEnd = new Date(lastSprint.endDate);
-    return workDaysBetween(startDate, lastSprintEnd);
-  }, [sprints, startDate, totalDays]);
-
-  // Generate day markers (always skip weekends)
+  // Generate day markers from dailyCapacities to ensure indices align
   const dayMarkers = useMemo(() => {
-    const markers = [];
-    let dayIndex = 0;
-    const current = new Date(startDate);
-
-    // Generate markers for each work day
-    while (dayIndex <= totalSprintDays) {
-      if (!isWeekend(current)) {
-        markers.push({ day: dayIndex, date: new Date(current) });
-        dayIndex++;
-      }
-      current.setDate(current.getDate() + 1);
-    }
-    return markers;
-  }, [totalSprintDays, startDate]);
+    if (!dailyCapacities || dailyCapacities.length === 0) return [];
+    return dailyCapacities.map((cap, idx) => {
+      const dt = parseDate(cap.date);
+      return {
+        day: idx,
+        dateStr: cap.date,
+        dayOfMonth: dt.day,
+        weekdayAbbrev: dt.toFormat('ccc').slice(0, 2),
+      };
+    });
+  }, [dailyCapacities]);
 
 
 
@@ -157,7 +119,7 @@ const TimelineHeader = ({
           display: 'flex',
         }}
       >
-        {dayMarkers.map(({ day, date }) => (
+        {dayMarkers.map(({ day, dayOfMonth, weekdayAbbrev }) => (
           <Box
             key={day}
             sx={{
@@ -173,10 +135,10 @@ const TimelineHeader = ({
             }}
           >
             <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 'medium' }}>
-              {date.getDate()}
+              {dayOfMonth}
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: 8 }}>
-              {date.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 2)}
+              {weekdayAbbrev}
             </Typography>
           </Box>
         ))}
@@ -193,10 +155,10 @@ const TimelineHeader = ({
           display: 'flex',
         }}
       >
-        {dayMarkers.map(({ day, date }) => {
+        {dayMarkers.map(({ day, dateStr }) => {
           const capacityInfo = dailyCapacities?.[day];
           const currentCapacity = capacityInfo?.totalCapacity ?? maxDevelopers;
-          const dateStr = toISODateStringLocal(date);
+          const isModified = currentCapacity !== maxDevelopers;
           return (
             <Box
               key={`input-${day}`}
@@ -227,9 +189,11 @@ const TimelineHeader = ({
                       height: 22,
                       fontSize: 10,
                       p: 0,
+                      bgcolor: isModified ? 'warning.light' : 'transparent',
                       '& input': {
                         textAlign: 'center',
                         p: '2px',
+                        fontWeight: isModified ? 'bold' : 'normal',
                       },
                     },
                   },
@@ -238,7 +202,10 @@ const TimelineHeader = ({
                 sx={{
                   width: dayWidth - 4,
                   '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: 'divider' },
+                    '& fieldset': {
+                      borderColor: isModified ? 'warning.main' : 'divider',
+                      borderWidth: isModified ? 2 : 1,
+                    },
                   },
                 }}
               />

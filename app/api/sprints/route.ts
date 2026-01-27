@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getJiraClient, mapToSprints } from '@/backend/jira';
+import { parseDate } from '@/shared/utils/dates';
 
 export const GET = async (request: NextRequest) => {
   const searchParams = request.nextUrl.searchParams;
@@ -14,7 +15,7 @@ export const GET = async (request: NextRequest) => {
     sprints.sort((a, b) => {
       if (!a.startDate) return 1;
       if (!b.startDate) return -1;
-      return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+      return parseDate(a.startDate).toMillis() - parseDate(b.startDate).toMillis();
     });
 
     return NextResponse.json({

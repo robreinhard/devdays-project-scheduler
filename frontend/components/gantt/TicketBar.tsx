@@ -6,12 +6,13 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import Link from '@mui/material/Link';
 import type { ScheduledTicket } from '@/shared/types';
+import { parseDate, addWorkDays } from '@/shared/utils/dates';
 
 interface TicketBarProps {
   ticket: ScheduledTicket;
   dayWidth: number;
   rowHeight: number;
-  projectStartDate: Date;
+  projectStartDate: string;
   epicColor: string;
 }
 
@@ -65,14 +66,12 @@ const TicketBar = ({ ticket, dayWidth, rowHeight, projectStartDate, epicColor }:
   // Get color based on ticket status (gold for missing estimate, gray for uncertain)
   const color = getTicketColor(ticket, epicColor);
 
-  // Calculate actual dates
-  const startDate = new Date(projectStartDate);
-  startDate.setDate(startDate.getDate() + ticket.startDay);
-  const endDate = new Date(projectStartDate);
-  endDate.setDate(endDate.getDate() + ticket.endDay);
+  // Calculate actual dates using Luxon
+  const startDt = parseDate(projectStartDate);
+  const ticketStartDt = addWorkDays(startDt, ticket.startDay);
+  const ticketEndDt = addWorkDays(startDt, ticket.endDay);
 
-  const formatDate = (date: Date) =>
-    date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const formatDate = (dt: { toFormat: (fmt: string) => string }) => dt.toFormat('MMM d');
 
   // JIRA URL (assuming standard JIRA Cloud URL pattern)
   const jiraBaseUrl = process.env.NEXT_PUBLIC_JIRA_BASE_URL || '';
@@ -111,7 +110,7 @@ const TicketBar = ({ ticket, dayWidth, rowHeight, projectStartDate, epicColor }:
 
         <Typography variant="caption" color="text.secondary">Scheduled:</Typography>
         <Typography variant="caption">
-          {formatDate(startDate)} → {formatDate(endDate)}
+          {formatDate(ticketStartDt)} → {formatDate(ticketEndDt)}
         </Typography>
 
         {ticket.assignee && (

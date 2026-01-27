@@ -5,6 +5,7 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import type { GanttData } from '@/shared/types';
+import { parseDate, isWeekend } from '@/shared/utils/dates';
 import TimelineHeader from './TimelineHeader';
 import EpicRow from './EpicRow';
 
@@ -59,24 +60,21 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartPr
     return EPIC_COLORS[index % EPIC_COLORS.length];
   }, []);
 
-  // Parse project start date
-  const startDate = useMemo(() => new Date(projectStartDate), [projectStartDate]);
-
   // Calculate total days to display (always work days - weekends excluded)
   const totalDisplayDays = useMemo(() => {
     if (sprints.length === 0) return totalDays;
+    const startDt = parseDate(projectStartDate);
     const lastSprint = sprints[sprints.length - 1];
-    const lastSprintEnd = new Date(lastSprint.endDate);
+    const lastSprintEnd = parseDate(lastSprint.endDate);
     // Count work days between start and last sprint end
     let workDays = 0;
-    const current = new Date(startDate);
+    let current = startDt;
     while (current < lastSprintEnd) {
-      const day = current.getDay();
-      if (day !== 0 && day !== 6) workDays++;
-      current.setDate(current.getDate() + 1);
+      if (!isWeekend(current)) workDays++;
+      current = current.plus({ days: 1 });
     }
     return Math.max(totalDays, workDays);
-  }, [sprints, startDate, totalDays]);
+  }, [sprints, projectStartDate, totalDays]);
 
   // Calculate chart dimensions
   const chartWidth = useMemo(() => {
@@ -138,7 +136,7 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartPr
                 labelOnly
                 dayWidth={DAY_WIDTH}
                 rowHeight={ROW_HEIGHT}
-                startDate={startDate}
+                startDate={projectStartDate}
                 expanded={expandedEpics[epic.key] ?? true}
                 onToggleExpanded={() => toggleEpicExpanded(epic.key)}
                 epicColor={getEpicColor(index)}
@@ -152,7 +150,7 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartPr
             <TimelineHeader
               sprints={sprints}
               dailyCapacities={dailyCapacities}
-              startDate={startDate}
+              startDate={projectStartDate}
               totalDays={totalDisplayDays}
               dayWidth={DAY_WIDTH}
               maxDevelopers={maxDevelopers}
@@ -166,7 +164,7 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartPr
                 epic={epic}
                 dayWidth={DAY_WIDTH}
                 rowHeight={ROW_HEIGHT}
-                startDate={startDate}
+                startDate={projectStartDate}
                 expanded={expandedEpics[epic.key] ?? true}
                 onToggleExpanded={() => toggleEpicExpanded(epic.key)}
                 epicColor={getEpicColor(index)}

@@ -95,7 +95,11 @@ const SprintCapacityEditor = ({
         if (data.error) {
           setError(data.message || data.error);
         } else {
-          setSprints(data.sprints || []);
+          // Only include sprints that have both a start date and end date
+          const sprintsWithDates = (data.sprints || []).filter(
+            (sprint: JiraSprint) => sprint.startDate && sprint.endDate
+          );
+          setSprints(sprintsWithDates);
         }
       } catch (err) {
         setError('Failed to load sprints');

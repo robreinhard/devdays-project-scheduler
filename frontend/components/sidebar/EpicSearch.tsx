@@ -81,6 +81,7 @@ const EpicSearch = ({ onEpicSelect, selectedEpicKeys = [] }: EpicSearchProps) =>
       onClose={() => setOpen(false)}
       options={options}
       loading={loading}
+      value={null}
       inputValue={inputValue}
       onInputChange={handleInputChange}
       onChange={handleChange}

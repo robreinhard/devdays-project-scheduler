@@ -7,7 +7,8 @@ import IconButton from '@mui/material/IconButton';
 import Collapse from '@mui/material/Collapse';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import type { ScheduledEpic, ScheduledTicket } from '@/shared/types';
+import type { ScheduledEpic, ScheduledTicket, DayCapacityInfo } from '@/shared/types';
+import { parseDate } from '@/shared/utils/dates';
 import TicketBar from './TicketBar';
 
 // JIRA base URL from environment
@@ -26,6 +27,8 @@ interface EpicRowProps {
   expanded: boolean;
   onToggleExpanded: () => void;
   epicColor: string;
+  today?: string;
+  dailyCapacities?: DayCapacityInfo[];
 }
 
 const EpicRow = ({
@@ -37,6 +40,8 @@ const EpicRow = ({
   expanded,
   onToggleExpanded,
   epicColor,
+  today,
+  dailyCapacities,
 }: EpicRowProps) => {
   // Sort tickets by topological level, then by critical path weight (descending)
   const sortedTickets = useMemo(() => {
@@ -55,6 +60,37 @@ const EpicRow = ({
   const epicWidth = (epic.endDay - epic.startDay) * dayWidth;
 
   const epicUrl = getJiraUrl(epic.key);
+
+  // Helper to check if a date is in the past
+  const isPastDay = (dateStr: string) => today ? parseDate(dateStr) < parseDate(today) : false;
+
+  // Background grid component to show past day columns
+  const DayBackgroundGrid = ({ height }: { height: number }) => (
+    <Box
+      sx={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height,
+        display: 'flex',
+        zIndex: 0,
+        pointerEvents: 'none',
+      }}
+    >
+      {dailyCapacities?.map((cap, idx) => (
+        <Box
+          key={`bg-${idx}`}
+          sx={{
+            width: dayWidth,
+            minWidth: dayWidth,
+            height: '100%',
+            bgcolor: isPastDay(cap.date) ? 'rgba(0,0,0,0.08)' : 'transparent',
+          }}
+        />
+      ))}
+    </Box>
+  );
 
   if (labelOnly) {
     // Render just the label column
@@ -187,6 +223,7 @@ const EpicRow = ({
               borderColor: 'divider',
             }}
           >
+            <DayBackgroundGrid height={rowHeight} />
             <TicketBar
               ticket={ticket}
               dayWidth={dayWidth}

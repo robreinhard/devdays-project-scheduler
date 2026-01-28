@@ -8,6 +8,4 @@ When you change the points per day on the sidebar, individual day's adjusted cap
 
 We need to add the current asignee's profile photo to the left of the ticket.
 
-We need to diminish the brightness of a column if the day has already past (using CSS)
-
-We need all the blocked by tickets listed when you hover on another ticket
+When you hover on a ticket you should be able to see all tickets that block it

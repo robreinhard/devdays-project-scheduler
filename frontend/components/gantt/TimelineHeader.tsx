@@ -16,6 +16,7 @@ interface TimelineHeaderProps {
     dayWidth: number;
     maxDevelopers: number;
     onDailyCapacityChange?: (dayIndex: number, date: string, capacity: number) => void;
+    today: string;
 }
 
 const TimelineHeader = ({
@@ -25,9 +26,13 @@ const TimelineHeader = ({
                             totalDays,
                             dayWidth,
                             maxDevelopers,
-                            onDailyCapacityChange
+                            onDailyCapacityChange,
+                            today
                         }: TimelineHeaderProps) => {
     const startDt = useMemo(() => parseDate(startDate), [startDate]);
+
+    // Helper to check if a date is in the past
+    const isPastDay = (dateStr: string) => parseDate(dateStr) < parseDate(today);
 
     // Calculate sprint positions (always excludes weekends)
     const sprintPositions = useMemo(() => {
@@ -207,29 +212,34 @@ const TimelineHeader = ({
                     display: 'flex',
                 }}
             >
-                {dayMarkers.map(({day, dayOfMonth, weekdayAbbrev}) => (
-                    <Box
-                        key={day}
-                        sx={{
-                            width: dayWidth,
-                            minWidth: dayWidth,
-                            height: '100%',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            borderRight: 1,
-                            borderColor: 'divider',
-                        }}
-                    >
-                        <Typography variant="caption" sx={{fontSize: 10, fontWeight: 'medium'}}>
-                            {dayOfMonth}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{fontSize: 8}}>
-                            {weekdayAbbrev}
-                        </Typography>
-                    </Box>
-                ))}
+                {dayMarkers.map(({day, dateStr, dayOfMonth, weekdayAbbrev}) => {
+                    const isPast = isPastDay(dateStr);
+                    return (
+                        <Box
+                            key={day}
+                            sx={{
+                                width: dayWidth,
+                                minWidth: dayWidth,
+                                height: '100%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRight: 1,
+                                borderColor: 'divider',
+                                opacity: isPast ? 0.5 : 1,
+                                bgcolor: isPast ? 'grey.200' : 'grey.100',
+                            }}
+                        >
+                            <Typography variant="caption" sx={{fontSize: 10, fontWeight: 'medium'}}>
+                                {dayOfMonth}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{fontSize: 8}}>
+                                {weekdayAbbrev}
+                            </Typography>
+                        </Box>
+                    );
+                })}
             </Box>
 
             {/* Daily capacity input row */}
@@ -247,6 +257,7 @@ const TimelineHeader = ({
                     const capacityInfo = dailyCapacities?.[day];
                     const currentCapacity = capacityInfo?.totalCapacity ?? maxDevelopers;
                     const isModified = currentCapacity !== maxDevelopers;
+                    const isPast = isPastDay(dateStr);
                     return (
                         <Box
                             key={`input-${day}`}
@@ -259,6 +270,8 @@ const TimelineHeader = ({
                                 justifyContent: 'center',
                                 borderRight: 1,
                                 borderColor: 'divider',
+                                opacity: isPast ? 0.5 : 1,
+                                bgcolor: isPast ? 'grey.200' : 'grey.50',
                             }}
                         >
                             <TextField
@@ -313,11 +326,12 @@ const TimelineHeader = ({
                     display: 'flex',
                 }}
             >
-                {dayMarkers.map(({day}) => {
+                {dayMarkers.map(({day, dateStr}) => {
                     const capacityInfo = dailyCapacities?.[day];
                     const total = capacityInfo?.totalCapacity ?? maxDevelopers;
                     const used = capacityInfo?.usedCapacity ?? 0;
                     const usagePercent = total > 0 ? (used / total) * 100 : 0;
+                    const isPast = isPastDay(dateStr);
 
                     // Color based on utilization:
                     // GREEN: 100% utilized (all developers used)
@@ -343,6 +357,7 @@ const TimelineHeader = ({
                                 borderRight: 1,
                                 borderColor: 'divider',
                                 bgcolor: bgColor,
+                                opacity: isPast ? 0.5 : 1,
                             }}
                         >
                             <Typography

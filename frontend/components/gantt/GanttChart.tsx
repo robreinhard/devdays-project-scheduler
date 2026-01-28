@@ -4,8 +4,9 @@ import { useMemo, useState, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
+import { DateTime } from 'luxon';
 import type { GanttData } from '@/shared/types';
-import { parseDate, isWeekend } from '@/shared/utils/dates';
+import { parseDate, isWeekend, TIMEZONE } from '@/shared/utils/dates';
 import TimelineHeader from './TimelineHeader';
 import EpicRow from './EpicRow';
 
@@ -38,6 +39,9 @@ const LABEL_WIDTH = 280;
 
 const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartProps) => {
   const { epics, sprints, dailyCapacities, projectStartDate, totalDays } = data;
+
+  // Calculate today's date in the configured timezone
+  const today = useMemo(() => DateTime.now().setZone(TIMEZONE).toISODate() ?? '', []);
 
   // Track expanded state for each epic
   const [expandedEpics, setExpandedEpics] = useState<Record<string, boolean>>(() => {
@@ -155,6 +159,7 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartPr
               dayWidth={DAY_WIDTH}
               maxDevelopers={maxDevelopers}
               onDailyCapacityChange={onDailyCapacityChange}
+              today={today}
             />
 
             {/* Epic rows with ticket bars */}
@@ -168,6 +173,8 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartPr
                 expanded={expandedEpics[epic.key] ?? true}
                 onToggleExpanded={() => toggleEpicExpanded(epic.key)}
                 epicColor={getEpicColor(index)}
+                today={today}
+                dailyCapacities={dailyCapacities}
               />
             ))}
           </Box>

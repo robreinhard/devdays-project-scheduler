@@ -13,7 +13,6 @@ interface JiraConfig {
   email: string;
   apiToken: string;
   fieldDevDays: string;
-  fieldTimelineOrder: string;
   boardId: string;
 }
 
@@ -25,14 +24,12 @@ export const getJiraConfig = (): JiraConfig => {
   const email = process.env.JIRA_EMAIL;
   const apiToken = process.env.JIRA_API_TOKEN;
   const fieldDevDays = process.env.JIRA_FIELD_DEV_DAYS;
-  const fieldTimelineOrder = process.env.JIRA_FIELD_TIMELINE_ORDER;
   const boardId = process.env.JIRA_BOARD_ID;
 
-  if (!baseUrl || !email || !apiToken || !fieldDevDays || !fieldTimelineOrder || !boardId) {
+  if (!baseUrl || !email || !apiToken || !fieldDevDays || !boardId) {
     throw new Error(
       'Missing required JIRA environment variables. Required: ' +
-      'JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN, JIRA_FIELD_DEV_DAYS, ' +
-      'JIRA_FIELD_TIMELINE_ORDER, JIRA_BOARD_ID'
+      'JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN, JIRA_FIELD_DEV_DAYS, JIRA_BOARD_ID'
     );
   }
 
@@ -41,7 +38,6 @@ export const getJiraConfig = (): JiraConfig => {
     email,
     apiToken,
     fieldDevDays,
-    fieldTimelineOrder,
     boardId,
   };
 };
@@ -100,8 +96,8 @@ export class JiraClient {
       'assignee',
       'parent',
       'labels',
+      'issuelinks',
       this.config.fieldDevDays,
-      this.config.fieldTimelineOrder,
     ];
 
     const allFields = [...new Set([...defaultFields, ...fields])];
@@ -126,8 +122,8 @@ export class JiraClient {
       'assignee',
       'parent',
       'labels',
+      'issuelinks',
       this.config.fieldDevDays,
-      this.config.fieldTimelineOrder,
     ].join(',');
 
     return this.fetch<JiraIssueResponse>(`/rest/api/3/issue/${issueKey}?fields=${fields}`);
@@ -184,7 +180,6 @@ export class JiraClient {
    */
   getFieldConfig = () => ({
     devDays: this.config.fieldDevDays,
-    timelineOrder: this.config.fieldTimelineOrder,
   });
 }
 

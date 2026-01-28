@@ -4,15 +4,21 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="474dfc4f-f042-40fe-8455-4cf37e89a7a4" name="Changes" comment="fix: capacity per day is now working">
+    <list default="true" id="474dfc4f-f042-40fe-8455-4cf37e89a7a4" name="Changes" comment="feat: last PR before moving to topological sort">
+      <change afterPath="$PROJECT_DIR$/NEXT-TIME.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CLAUDE-PROGRESS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/IMPLEMENTATION-PLAN.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/epics/[key]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/epics/[key]/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/jira/client.ts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/jira/client.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/jira/mappers.ts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/jira/mappers.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/scheduler/algorithm.ts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/scheduler/algorithm.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/components/gantt/GanttChart.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/gantt/GanttChart.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/gantt/EpicRow.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/gantt/EpicRow.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/components/gantt/TicketBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/gantt/TicketBar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/components/gantt/TimelineHeader.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/gantt/TimelineHeader.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/components/sidebar/SidebarContent.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/sidebar/SidebarContent.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/components/sidebar/SprintCapacityEditor.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/sidebar/SprintCapacityEditor.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/shared/scheduler/algorithm.ts" beforeDir="false" afterPath="$PROJECT_DIR$/shared/scheduler/algorithm.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/shared/types/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/shared/types/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/shared/types/jira.ts" beforeDir="false" afterPath="$PROJECT_DIR$/shared/types/jira.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/shared/types/scheduling.ts" beforeDir="false" afterPath="$PROJECT_DIR$/shared/types/scheduling.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -89,7 +95,15 @@
       <option name="project" value="LOCAL" />
       <updated>1769552284359</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="feat: last PR before moving to topological sort">
+      <option name="closed" value="true" />
+      <created>1769568847049</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1769568847049</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -97,7 +111,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="fix: capacity per day is now working" />
-    <option name="LAST_COMMIT_MESSAGE" value="fix: capacity per day is now working" />
+    <MESSAGE value="feat: last PR before moving to topological sort" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: last PR before moving to topological sort" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

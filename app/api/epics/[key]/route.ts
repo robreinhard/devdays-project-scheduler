@@ -27,8 +27,8 @@ export const GET = async (_request: NextRequest, { params }: RouteParams) => {
     const issuesResponse = await client.getEpicIssues(key);
     const tickets = mapToTickets(issuesResponse.issues, key, fieldConfig);
 
-    // Sort tickets by timeline order
-    tickets.sort((a, b) => a.timelineOrder - b.timelineOrder);
+    // Sort tickets by key for consistent display
+    tickets.sort((a, b) => a.key.localeCompare(b.key));
 
     // Calculate total dev days
     const totalDevDays = tickets.reduce((sum, t) => sum + t.devDays, 0);

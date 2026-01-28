@@ -4,6 +4,7 @@ export type {
   JiraEpic,
   JiraTicket,
   JiraSprint,
+  JiraIssueLink,
   JiraIssueResponse,
   JiraSprintResponse,
   JiraSearchResponse,

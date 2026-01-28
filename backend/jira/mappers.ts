@@ -5,6 +5,7 @@ import type {
   JiraSprint,
   JiraIssueResponse,
   JiraSprintResponse,
+  JiraIssueLink,
 } from '@/shared/types';
 
 /**
@@ -12,7 +13,6 @@ import type {
  */
 interface FieldConfig {
   devDays: string;
-  timelineOrder: string;
 }
 
 /**
@@ -67,6 +67,24 @@ export const mapToEpic = (issue: JiraIssueResponse): JiraEpic => {
 const DEFAULT_DEV_DAYS = 5;
 
 /**
+ * Extract blocker relationships from issue links
+ * Returns an array of ticket keys that block this ticket
+ */
+const extractBlockedBy = (issuelinks: JiraIssueLink[] = []): string[] => {
+  const blockedBy: string[] = [];
+
+  for (const link of issuelinks) {
+    // Check if this is a "Blocks" type link where another issue blocks this one
+    // When inwardIssue exists with "Blocks" type, it means inwardIssue blocks this ticket
+    if (link.type.name === 'Blocks' && link.inwardIssue) {
+      blockedBy.push(link.inwardIssue.key);
+    }
+  }
+
+  return blockedBy;
+};
+
+/**
  * Map a JIRA issue response to a JiraTicket
  */
 export const mapToTicket = (
@@ -75,11 +93,13 @@ export const mapToTicket = (
   fieldConfig: FieldConfig
 ): JiraTicket => {
   const devDaysValue = issue.fields[fieldConfig.devDays];
-  const timelineOrderValue = issue.fields[fieldConfig.timelineOrder];
 
   // Check if estimate is missing (null, undefined, 0, or non-number)
   const hasEstimate = typeof devDaysValue === 'number' && devDaysValue > 0;
   const devDays = hasEstimate ? devDaysValue : DEFAULT_DEV_DAYS;
+
+  // Extract blocker relationships from issue links
+  const blockedBy = extractBlockedBy(issue.fields.issuelinks);
 
   return {
     key: issue.key,
@@ -87,7 +107,7 @@ export const mapToTicket = (
     status: issue.fields.status.name,
     epicKey,
     devDays,
-    timelineOrder: typeof timelineOrderValue === 'number' ? timelineOrderValue : 999,
+    blockedBy,
     assignee: issue.fields.assignee?.displayName,
     isMissingEstimate: !hasEstimate,
   };

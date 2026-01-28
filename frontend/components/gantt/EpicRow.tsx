@@ -1,12 +1,13 @@
 'use client';
 
+import { useMemo } from 'react';
 import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
 import IconButton from '@mui/material/IconButton';
 import Collapse from '@mui/material/Collapse';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import type { ScheduledEpic } from '@/shared/types';
+import type { ScheduledEpic, ScheduledTicket } from '@/shared/types';
 import TicketBar from './TicketBar';
 
 // JIRA base URL from environment
@@ -37,6 +38,17 @@ const EpicRow = ({
   onToggleExpanded,
   epicColor,
 }: EpicRowProps) => {
+  // Sort tickets by topological level, then by critical path weight (descending)
+  const sortedTickets = useMemo(() => {
+    return [...epic.tickets].sort((a: ScheduledTicket, b: ScheduledTicket) => {
+      // First by parallelGroup (topological level)
+      if (a.parallelGroup !== b.parallelGroup) {
+        return a.parallelGroup - b.parallelGroup;
+      }
+      // Then by critical path weight (higher weight = more important = first)
+      return b.criticalPathWeight - a.criticalPathWeight;
+    });
+  }, [epic.tickets]);
 
   // Epic summary bar dimensions
   const epicLeft = epic.startDay * dayWidth;
@@ -91,7 +103,7 @@ const EpicRow = ({
 
         {/* Ticket labels */}
         <Collapse in={expanded}>
-          {epic.tickets.map((ticket) => {
+          {sortedTickets.map((ticket) => {
             const ticketUrl = getJiraUrl(ticket.key);
             return (
               <Box
@@ -164,7 +176,7 @@ const EpicRow = ({
 
       {/* Ticket bars */}
       <Collapse in={expanded}>
-        {epic.tickets.map((ticket) => (
+        {sortedTickets.map((ticket) => (
           <Box
             key={ticket.key}
             sx={{

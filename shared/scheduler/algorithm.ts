@@ -110,12 +110,132 @@ const sortEpics = (epics: JiraEpic[], worstCaseMap: Map<string, number>): JiraEp
 };
 
 /**
- * Get tickets for an epic sorted by timeline order
+ * Ticket with topological level and critical path weight for scheduling
  */
-const getEpicTicketsSorted = (epicKey: string, tickets: JiraTicket[]): JiraTicket[] => {
-  return tickets
-    .filter(t => t.epicKey === epicKey)
-    .sort((a, b) => a.timelineOrder - b.timelineOrder);
+interface TicketWithLevel extends JiraTicket {
+  level: number;
+  downstreamWeight: number;
+}
+
+/**
+ * Calculate downstream weight for each ticket (total dev days of all dependent tickets)
+ */
+const calculateDownstreamWeights = (
+  epicTickets: JiraTicket[],
+  dependents: Map<string, string[]>,
+  ticketMap: Map<string, JiraTicket>
+): Map<string, number> => {
+  const weights = new Map<string, number>();
+
+  const calculateWeight = (ticketKey: string): number => {
+    if (weights.has(ticketKey)) {
+      return weights.get(ticketKey)!;
+    }
+
+    const ticket = ticketMap.get(ticketKey);
+    if (!ticket) return 0;
+
+    let weight = ticket.devDays;
+    for (const dependentKey of dependents.get(ticketKey) ?? []) {
+      weight += calculateWeight(dependentKey);
+    }
+
+    weights.set(ticketKey, weight);
+    return weight;
+  };
+
+  for (const ticket of epicTickets) {
+    calculateWeight(ticket.key);
+  }
+
+  return weights;
+};
+
+/**
+ * Topologically sort tickets within an epic based on blocker relationships
+ * Prioritizes tickets with higher downstream weight (critical path)
+ */
+const getEpicTicketsTopological = (epicKey: string, allTickets: JiraTicket[]): TicketWithLevel[] => {
+  const epicTickets = allTickets.filter(t => t.epicKey === epicKey);
+  const epicTicketKeys = new Set(epicTickets.map(t => t.key));
+
+  const inDegree = new Map<string, number>();
+  const dependents = new Map<string, string[]>();
+
+  for (const ticket of epicTickets) {
+    inDegree.set(ticket.key, 0);
+    dependents.set(ticket.key, []);
+  }
+
+  for (const ticket of epicTickets) {
+    const blockedBy = ticket.blockedBy ?? [];
+    for (const blockerKey of blockedBy) {
+      if (epicTicketKeys.has(blockerKey)) {
+        inDegree.set(ticket.key, (inDegree.get(ticket.key) ?? 0) + 1);
+        const deps = dependents.get(blockerKey) ?? [];
+        deps.push(ticket.key);
+        dependents.set(blockerKey, deps);
+      }
+    }
+  }
+
+  const ticketMap = new Map(epicTickets.map(t => [t.key, t]));
+  const downstreamWeights = calculateDownstreamWeights(epicTickets, dependents, ticketMap);
+
+  const result: TicketWithLevel[] = [];
+
+  let currentLevel: string[] = [];
+  for (const ticket of epicTickets) {
+    if (inDegree.get(ticket.key) === 0) {
+      currentLevel.push(ticket.key);
+    }
+  }
+
+  // Sort by downstream weight (higher = more critical = first)
+  currentLevel.sort((a, b) => {
+    const weightA = downstreamWeights.get(a) ?? 0;
+    const weightB = downstreamWeights.get(b) ?? 0;
+    return weightB - weightA;
+  });
+
+  let level = 0;
+  while (currentLevel.length > 0) {
+    const nextLevel: string[] = [];
+
+    for (const ticketKey of currentLevel) {
+      const ticket = ticketMap.get(ticketKey)!;
+      const weight = downstreamWeights.get(ticketKey) ?? 0;
+      result.push({ ...ticket, level, downstreamWeight: weight });
+
+      for (const dependentKey of dependents.get(ticketKey) ?? []) {
+        const newInDegree = (inDegree.get(dependentKey) ?? 1) - 1;
+        inDegree.set(dependentKey, newInDegree);
+
+        if (newInDegree === 0) {
+          nextLevel.push(dependentKey);
+        }
+      }
+    }
+
+    nextLevel.sort((a, b) => {
+      const weightA = downstreamWeights.get(a) ?? 0;
+      const weightB = downstreamWeights.get(b) ?? 0;
+      return weightB - weightA;
+    });
+
+    currentLevel = nextLevel;
+    level++;
+  }
+
+  if (result.length !== epicTickets.length) {
+    const processedKeys = new Set(result.map(t => t.key));
+    const unprocessed = epicTickets.filter(t => !processedKeys.has(t.key));
+    for (const ticket of unprocessed) {
+      result.push({ ...ticket, level: 999, downstreamWeight: 0 });
+    }
+  }
+
+  return result;
 };
 
 /**
@@ -157,7 +277,8 @@ const getSprintEndDayIndex = (
 };
 
 /**
- * Slot an epic's tickets linearly, respecting sprint boundaries
+ * Slot an epic's tickets using topological sort with parallel execution
+ * Each ticket starts as soon as its specific blockers complete
  */
 const slotEpicLinear = (
   epic: JiraEpic,
@@ -166,13 +287,29 @@ const slotEpicLinear = (
   startDayIndex: number
 ): ScheduledTicket[] => {
   const scheduledTickets: ScheduledTicket[] = [];
-  const epicTickets = getEpicTicketsSorted(epic.key, tickets);
+  const epicTickets = getEpicTicketsTopological(epic.key, tickets);
+  const epicTicketKeys = new Set(epicTickets.map(t => t.key));
 
-  let currentDayIndex = startDayIndex;
+  // Track end days for each scheduled ticket (for dependency resolution)
+  const ticketEndDays = new Map<string, number>();
   let hasSeenMissingEstimate = false;
 
+  // Process tickets in topological order (dependencies always come first)
   for (const ticket of epicTickets) {
+    // Calculate earliest start based on blockers
+    let earliestStart = startDayIndex;
+    const blockedBy = ticket.blockedBy ?? [];
+    for (const blockerKey of blockedBy) {
+      if (epicTicketKeys.has(blockerKey)) {
+        const blockerEndDay = ticketEndDays.get(blockerKey);
+        if (blockerEndDay !== undefined && blockerEndDay > earliestStart) {
+          earliestStart = blockerEndDay;
+        }
+      }
+    }
+
     // Find a position where the ticket fits within a single sprint
+    let currentDayIndex = earliestStart;
     while (currentDayIndex < dailyCapacity.length) {
       const sprintEndIndex = getSprintEndDayIndex(currentDayIndex, dailyCapacity);
       const remainingDaysInSprint = sprintEndIndex - currentDayIndex + 1;
@@ -201,16 +338,18 @@ const slotEpicLinear = (
       dailyCapacity[d].remainingCapacity -= 1;
     }
 
+    ticketEndDays.set(ticket.key, endDay);
+
     scheduledTickets.push({
       ...ticket,
       startDay,
       endDay,
       sprintId,
-      parallelGroup: 0,
+      parallelGroup: ticket.level,
       isUncertain,
+      criticalPathWeight: ticket.downstreamWeight,
+      isOnCriticalPath: false,
     });
-
-    currentDayIndex = endDay;
   }
 
   return scheduledTickets;
@@ -315,14 +454,30 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
     }
   }
 
-  // Slot stretch epics (fill gaps with available capacity)
+  // Slot stretch epics (fill gaps with available capacity, respecting dependencies)
   for (const epic of sortedStretch) {
-    const epicTickets = getEpicTicketsSorted(epic.key, tickets);
-    let currentSearchStart = 0;
+    const epicTickets = getEpicTicketsTopological(epic.key, tickets);
+    const epicTicketKeys = new Set(epicTickets.map(t => t.key));
+
+    // Track end days for each scheduled ticket (for dependency resolution)
+    const ticketEndDays = new Map<string, number>();
     let hasSeenMissingEstimate = false;
 
+    // Process tickets in topological order
     for (const ticket of epicTickets) {
-      const startDayIndex = findNextAvailableSlot(currentSearchStart, ticket.devDays, dailyCapacity);
+      // Calculate earliest start based on blockers
+      let earliestStart = 0;
+      const blockedBy = ticket.blockedBy ?? [];
+      for (const blockerKey of blockedBy) {
+        if (epicTicketKeys.has(blockerKey)) {
+          const blockerEndDay = ticketEndDays.get(blockerKey);
+          if (blockerEndDay !== undefined && blockerEndDay > earliestStart) {
+            earliestStart = blockerEndDay;
+          }
+        }
+      }
+
+      const startDayIndex = findNextAvailableSlot(earliestStart, ticket.devDays, dailyCapacity);
 
       if (startDayIndex >= dailyCapacity.length) {
         break;
@@ -340,16 +495,18 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
         dailyCapacity[d].remainingCapacity -= 1;
       }
 
+      ticketEndDays.set(ticket.key, endDay);
+
       allScheduledTickets.push({
         ...ticket,
         startDay: startDayIndex,
         endDay,
         sprintId,
-        parallelGroup: 0,
+        parallelGroup: ticket.level,
         isUncertain,
+        criticalPathWeight: ticket.downstreamWeight,
+        isOnCriticalPath: false,
       });
-
-      currentSearchStart = endDay;
     }
   }
 
@@ -358,6 +515,67 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
   // Build scheduled epics
   const scheduledEpics: ScheduledEpic[] = epics.map(epic => {
     const epicTickets = allScheduledTickets.filter(t => t.epicKey === epic.key);
+
+    // Sort tickets by topological level, then by critical path weight (descending)
+    epicTickets.sort((a, b) => {
+      if (a.parallelGroup !== b.parallelGroup) {
+        return a.parallelGroup - b.parallelGroup;
+      }
+      return b.criticalPathWeight - a.criticalPathWeight;
+    });
+
+    // Mark tickets on the critical path for this epic
+    if (epicTickets.length > 0) {
+      const ticketMap = new Map(epicTickets.map(t => [t.key, t]));
+
+      // Build dependents map (ticket -> tickets it blocks)
+      const dependents = new Map<string, string[]>();
+      for (const ticket of epicTickets) {
+        const blockedBy = ticket.blockedBy ?? [];
+        for (const blockerKey of blockedBy) {
+          if (ticketMap.has(blockerKey)) {
+            if (!dependents.has(blockerKey)) {
+              dependents.set(blockerKey, []);
+            }
+            dependents.get(blockerKey)!.push(ticket.key);
+          }
+        }
+      }
+
+      // Find ticket with highest weight at level 0
+      const level0Tickets = epicTickets.filter(t => t.parallelGroup === 0);
+      if (level0Tickets.length > 0) {
+        const criticalPathKeys = new Set<string>();
+        let current = level0Tickets[0];
+        criticalPathKeys.add(current.key);
+
+        while (true) {
+          const deps = dependents.get(current.key) ?? [];
+          if (deps.length === 0) break;
+
+          let nextTicket: typeof current | null = null;
+          let maxWeight = -1;
+          for (const depKey of deps) {
+            const dep = ticketMap.get(depKey);
+            if (dep && dep.criticalPathWeight > maxWeight) {
+              maxWeight = dep.criticalPathWeight;
+              nextTicket = dep;
+            }
+          }
+
+          if (!nextTicket) break;
+          criticalPathKeys.add(nextTicket.key);
+          current = nextTicket;
+        }
+
+        for (const ticket of epicTickets) {
+          if (criticalPathKeys.has(ticket.key)) {
+            ticket.isOnCriticalPath = true;
+          }
+        }
+      }
+    }
+
     const epicTotalDevDays = epicTickets.reduce((sum, t) => sum + t.devDays, 0);
 
     return {

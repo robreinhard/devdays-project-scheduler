@@ -99,6 +99,14 @@ const TicketBar = ({ticket, dayWidth, rowHeight, projectStartDate, epicColor}: T
                     Schedule uncertain - follows unestimated ticket
                 </Typography>
             )}
+            {ticket.isOnCriticalPath && (
+                <Typography
+                    variant="caption"
+                    sx={{color: '#000', fontWeight: 'bold', display: 'block', mt: 0.5}}
+                >
+                    ★ Critical Path
+                </Typography>
+            )}
             <Box sx={{mt: 1, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 0.5}}>
                 <Typography variant="caption" color="text.secondary">Status:</Typography>
                 <Typography variant="caption">{ticket.status}</Typography>
@@ -162,6 +170,9 @@ const TicketBar = ({ticket, dayWidth, rowHeight, projectStartDate, epicColor}: T
                     px: 0.5,
                     overflow: 'hidden',
                     transition: 'transform 0.1s, box-shadow 0.1s',
+                    // Thick black border for critical path tickets
+                    border: ticket.isOnCriticalPath ? '3px solid #000' : 'none',
+                    boxSizing: 'border-box',
                     '&:hover': {
                         transform: 'scale(1.02)',
                         boxShadow: 2,

@@ -24,7 +24,7 @@ export interface JiraTicket {
   status: string;
   epicKey: string;       // Parent epic key
   devDays: number;       // Custom field: Story Points / Dev Days (default: 5 if missing)
-  timelineOrder: number; // Custom field: Linear order within epic
+  blockedBy?: string[];  // Ticket keys that block this ticket
   assignee?: string;
   isMissingEstimate: boolean; // True if devDays was defaulted (no estimate in JIRA)
 }
@@ -35,6 +35,31 @@ export interface JiraSprint {
   state: 'active' | 'closed' | 'future';
   startDate: string;     // ISO date string
   endDate: string;       // ISO date string
+}
+
+/**
+ * JIRA issue link structure
+ */
+export interface JiraIssueLink {
+  id: string;
+  type: {
+    id: string;
+    name: string;
+    inward: string;   // e.g., "is blocked by"
+    outward: string;  // e.g., "blocks"
+  };
+  inwardIssue?: {
+    key: string;
+    fields: {
+      summary: string;
+    };
+  };
+  outwardIssue?: {
+    key: string;
+    fields: {
+      summary: string;
+    };
+  };
 }
 
 /**
@@ -55,6 +80,7 @@ export interface JiraIssueResponse {
       key: string;
     };
     labels?: string[]; // JIRA labels array
+    issuelinks?: JiraIssueLink[]; // Issue links for blockers
     [key: string]: unknown; // Custom fields accessed by ID
   };
 }

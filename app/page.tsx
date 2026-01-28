@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
@@ -21,12 +21,21 @@ const HomeContent = () => {
 
   const {
     epicKeys,
+    epics,
     sprintCapacities,
     maxDevelopers,
     dailyCapacityOverrides,
     setDailyCapacityOverride,
   } = useAppState();
-  const { ganttData, isLoading, error, generate } = useGanttData();
+  const { ganttData, isLoading, error, generate, clear } = useGanttData();
+
+  // Track previous values to detect changes
+  const prevValuesRef = useRef<{
+    epicKeys: string;
+    sprintCapacities: string;
+    maxDevelopers: number;
+    dailyCapacityOverrides: string;
+  } | null>(null);
 
   useEffect(() => {
     const checkConnection = async () => {
@@ -45,9 +54,9 @@ const HomeContent = () => {
     checkConnection();
   }, []);
 
-  const handleGenerate = useCallback(() => {
-    // Build sprint capacities with daily overrides from URL state
-    const capacitiesWithOverrides = sprintCapacities.map((sc) => {
+  // Build sprint capacities with daily overrides
+  const buildCapacitiesWithOverrides = useCallback(() => {
+    return sprintCapacities.map((sc) => {
       const dailyOverrides: DailyCapacity[] = dailyCapacityOverrides
         .filter((override) => override.sprintId === sc.sprintId)
         .map((override) => ({ date: override.date, capacity: override.capacity }));
@@ -57,9 +66,43 @@ const HomeContent = () => {
         dailyCapacities: dailyOverrides.length > 0 ? dailyOverrides : sc.dailyCapacities,
       };
     });
+  }, [sprintCapacities, dailyCapacityOverrides]);
 
-    generate(epicKeys, capacitiesWithOverrides, maxDevelopers);
-  }, [epicKeys, sprintCapacities, maxDevelopers, dailyCapacityOverrides, generate]);
+  // Auto-generate when prerequisites are met and values change
+  useEffect(() => {
+    // Check prerequisites
+    const canGenerate = epicKeys.length > 0 && sprintCapacities.length > 0 && maxDevelopers > 0;
+
+    if (!canGenerate) {
+      // Clear gantt data if prerequisites are no longer met
+      if (ganttData && epicKeys.length === 0) {
+        clear();
+      }
+      return;
+    }
+
+    // Create current value signatures
+    const currentValues = {
+      epicKeys: epicKeys.join(','),
+      sprintCapacities: JSON.stringify(sprintCapacities),
+      maxDevelopers,
+      dailyCapacityOverrides: JSON.stringify(dailyCapacityOverrides),
+    };
+
+    // Check if values have changed
+    const prev = prevValuesRef.current;
+    const hasChanged = !prev ||
+      prev.epicKeys !== currentValues.epicKeys ||
+      prev.sprintCapacities !== currentValues.sprintCapacities ||
+      prev.maxDevelopers !== currentValues.maxDevelopers ||
+      prev.dailyCapacityOverrides !== currentValues.dailyCapacityOverrides;
+
+    if (hasChanged) {
+      prevValuesRef.current = currentValues;
+      const capacitiesWithOverrides = buildCapacitiesWithOverrides();
+      generate(epicKeys, capacitiesWithOverrides, maxDevelopers);
+    }
+  }, [epicKeys, sprintCapacities, maxDevelopers, dailyCapacityOverrides, buildCapacitiesWithOverrides, generate, clear, ganttData]);
 
   // Handle daily capacity changes from the gantt chart
   const handleDailyCapacityChange = useCallback((dayIndex: number, date: string, capacity: number) => {
@@ -69,30 +112,37 @@ const HomeContent = () => {
     const dayInfo = ganttData.dailyCapacities[dayIndex];
     if (!dayInfo) return;
 
-    // Store the override in URL state
+    // Store the override in URL state (will trigger auto-regeneration)
     setDailyCapacityOverride(date, dayInfo.sprintId, capacity);
   }, [ganttData, setDailyCapacityOverride]);
 
-  // Regenerate when daily capacity overrides change (only if we already have gantt data)
-  useEffect(() => {
-    if (!ganttData || epicKeys.length === 0 || sprintCapacities.length === 0) return;
-
-    // Build sprint capacities with daily overrides from URL state
-    const capacitiesWithOverrides = sprintCapacities.map((sc) => {
-      const dailyOverrides: DailyCapacity[] = dailyCapacityOverrides
-        .filter((override) => override.sprintId === sc.sprintId)
-        .map((override) => ({ date: override.date, capacity: override.capacity }));
-
+  // Determine what message to show when no chart
+  const getEmptyStateMessage = () => {
+    if (sprintCapacities.length === 0) {
       return {
-        ...sc,
-        dailyCapacities: dailyOverrides.length > 0 ? dailyOverrides : sc.dailyCapacities,
+        title: 'Step 1: Select Sprints',
+        subtitle: 'Choose the sprints to include in the schedule',
       };
-    });
+    }
+    if (maxDevelopers <= 0) {
+      return {
+        title: 'Step 2: Set Points Per Day',
+        subtitle: 'Configure how many story points can be completed per day',
+      };
+    }
+    if (epics.length === 0) {
+      return {
+        title: 'Step 3: Select Epics',
+        subtitle: 'Add epics to generate the GANTT chart',
+      };
+    }
+    return {
+      title: 'Generating...',
+      subtitle: 'Please wait while the schedule is calculated',
+    };
+  };
 
-    generate(epicKeys, capacitiesWithOverrides, maxDevelopers);
-  // Only regenerate when dailyCapacityOverrides changes, not on every dependency change
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(dailyCapacityOverrides)]);
+  const emptyState = getEmptyStateMessage();
 
   return (
     <Box
@@ -112,7 +162,7 @@ const HomeContent = () => {
         }}
       >
         <Sidebar>
-          <SidebarContent onGenerate={handleGenerate} isGenerating={isLoading} />
+          <SidebarContent isGenerating={isLoading} />
         </Sidebar>
         <MainContent>
           {error && (
@@ -137,12 +187,23 @@ const HomeContent = () => {
                 color: 'text.secondary',
               }}
             >
-              <Typography variant="h6" gutterBottom>
-                No GANTT chart generated yet
-              </Typography>
-              <Typography variant="body2">
-                Select epics and sprints, then click Generate GANTT
-              </Typography>
+              {isLoading ? (
+                <>
+                  <CircularProgress sx={{ mb: 2 }} />
+                  <Typography variant="h6" gutterBottom>
+                    Generating Schedule...
+                  </Typography>
+                </>
+              ) : (
+                <>
+                  <Typography variant="h6" gutterBottom>
+                    {emptyState.title}
+                  </Typography>
+                  <Typography variant="body2">
+                    {emptyState.subtitle}
+                  </Typography>
+                </>
+              )}
             </Box>
           )}
         </MainContent>

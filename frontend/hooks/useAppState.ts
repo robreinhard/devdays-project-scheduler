@@ -166,6 +166,7 @@ export const useAppState = (): UseAppStateResult => {
 
     setIsLoading(true);
     const newEpics: JiraEpic[] = [];
+    const loadedKeys: string[] = [];
 
     for (const key of keysToLoad) {
       try {
@@ -175,6 +176,7 @@ export const useAppState = (): UseAppStateResult => {
         if (data.epic) {
           newEpics.push(data.epic);
           loadedKeysRef.current.add(key);
+          loadedKeys.push(key);
         }
       } catch (error) {
         console.error(`Failed to load epic ${key}:`, error);
@@ -183,10 +185,20 @@ export const useAppState = (): UseAppStateResult => {
 
     if (newEpics.length > 0) {
       setEpics((prev) => [...prev, ...newEpics]);
+
+      // Update pending keys and URL with successfully loaded keys
+      const newPendingKeys = [...pendingEpicKeysRef.current];
+      for (const key of loadedKeys) {
+        if (!newPendingKeys.includes(key)) {
+          newPendingKeys.push(key);
+        }
+      }
+      pendingEpicKeysRef.current = newPendingKeys;
+      updateUrl(QUERY_PARAM_KEYS.EPICS, newPendingKeys.join(','));
     }
 
     setIsLoading(false);
-  }, []);
+  }, [updateUrl]);
 
   const setSprintCapacities = useCallback((capacities: SprintCapacity[]) => {
     const value = capacities.length > 0 ? serializeSprintCapacities(capacities) : null;

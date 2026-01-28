@@ -9,6 +9,7 @@ import type { GanttData } from '@/shared/types';
 import { parseDate, isWeekend, TIMEZONE } from '@/shared/utils/dates';
 import TimelineHeader from './TimelineHeader';
 import EpicRow from './EpicRow';
+import DependencyLines from './DependencyLines';
 
 // MUI default theme color palette for epics
 const EPIC_COLORS = [
@@ -163,20 +164,31 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartPr
             />
 
             {/* Epic rows with ticket bars */}
-            {epics.map((epic, index) => (
-              <EpicRow
-                key={epic.key}
-                epic={epic}
+            <Box sx={{ position: 'relative' }}>
+              {/* Dependency lines overlay */}
+              <DependencyLines
+                epics={epics}
+                expandedEpics={expandedEpics}
                 dayWidth={DAY_WIDTH}
                 rowHeight={ROW_HEIGHT}
-                startDate={projectStartDate}
-                expanded={expandedEpics[epic.key] ?? true}
-                onToggleExpanded={() => toggleEpicExpanded(epic.key)}
-                epicColor={getEpicColor(index)}
-                today={today}
-                dailyCapacities={dailyCapacities}
               />
-            ))}
+
+              {/* Epic rows */}
+              {epics.map((epic, index) => (
+                <EpicRow
+                  key={epic.key}
+                  epic={epic}
+                  dayWidth={DAY_WIDTH}
+                  rowHeight={ROW_HEIGHT}
+                  startDate={projectStartDate}
+                  expanded={expandedEpics[epic.key] ?? true}
+                  onToggleExpanded={() => toggleEpicExpanded(epic.key)}
+                  epicColor={getEpicColor(index)}
+                  today={today}
+                  dailyCapacities={dailyCapacities}
+                />
+              ))}
+            </Box>
           </Box>
         </Box>
       </Box>

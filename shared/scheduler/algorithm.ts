@@ -84,6 +84,73 @@ const buildDailyCapacityMap = (
 };
 
 /**
+ * Extend the daily capacity array with additional work days beyond sprints.
+ * Adds days in 10-day increments (weekdays only) using maxDevelopers capacity.
+ * Each 10-day period gets a unique negative sprintId (-1, -2, -3, etc.) so
+ * tickets can't cross these boundaries, just like real sprints.
+ */
+const extendDailyCapacity = (
+  dailyCapacity: DayCapacity[],
+  daysNeeded: number,
+  maxDevelopers: number
+): void => {
+  if (daysNeeded <= 0) return;
+
+  // Find the last date and determine the next extended period ID
+  const lastDay = dailyCapacity[dailyCapacity.length - 1];
+  let currentDate = parseDate(lastDay.date).plus({ days: 1 });
+
+  // Find the lowest existing sprintId to determine next extended period ID
+  // Extended periods use negative IDs: -1, -2, -3, etc.
+  let nextExtendedPeriodId = -1;
+  for (const day of dailyCapacity) {
+    if (day.sprintId < nextExtendedPeriodId) {
+      nextExtendedPeriodId = day.sprintId - 1;
+    }
+  }
+
+  // Check if we're in the middle of an extended period
+  let currentPeriodId = nextExtendedPeriodId;
+  let currentPeriodDayIndex = 0;
+
+  // If the last day was an extended period, continue from there
+  if (lastDay.sprintId < 0) {
+    currentPeriodId = lastDay.sprintId;
+    currentPeriodDayIndex = lastDay.sprintDayIndex + 1;
+    // If we've hit 10 days, start a new period
+    if (currentPeriodDayIndex >= 10) {
+      currentPeriodId = lastDay.sprintId - 1;
+      currentPeriodDayIndex = 0;
+    }
+  }
+
+  // Add work days in 10-day increments
+  const daysToAdd = Math.ceil(daysNeeded / 10) * 10;
+  let daysAdded = 0;
+
+  while (daysAdded < daysToAdd) {
+    if (!isWeekend(currentDate)) {
+      dailyCapacity.push({
+        date: currentDate.toISODate()!,
+        sprintId: currentPeriodId,
+        originalCapacity: maxDevelopers,
+        remainingCapacity: maxDevelopers,
+        sprintDayIndex: currentPeriodDayIndex,
+      });
+      daysAdded++;
+      currentPeriodDayIndex++;
+
+      // Start a new 10-day period
+      if (currentPeriodDayIndex >= 10) {
+        currentPeriodId--;
+        currentPeriodDayIndex = 0;
+      }
+    }
+    currentDate = currentDate.plus({ days: 1 });
+  }
+};
+
+/**
  * Calculate worst-case duration for an epic (sum of all ticket devDays)
  */
 const calculateWorstCase = (epic: JiraEpic, tickets: JiraTicket[]): number => {
@@ -284,7 +351,8 @@ const slotEpicLinear = (
   epic: JiraEpic,
   tickets: JiraTicket[],
   dailyCapacity: DayCapacity[],
-  startDayIndex: number
+  startDayIndex: number,
+  maxDevelopers: number
 ): ScheduledTicket[] => {
   const scheduledTickets: ScheduledTicket[] = [];
   const epicTickets = getEpicTicketsTopological(epic.key, tickets);
@@ -307,7 +375,7 @@ const slotEpicLinear = (
       }
     }
 
-    // Find a position where the ticket fits within a single sprint
+    // Find a position where the ticket fits within a single sprint (or extended period)
     let currentDayIndex = earliestStart;
     while (currentDayIndex < dailyCapacity.length) {
       const sprintEndIndex = getSprintEndDayIndex(currentDayIndex, dailyCapacity);
@@ -320,13 +388,20 @@ const slotEpicLinear = (
       currentDayIndex = findNextSprintStart(currentDayIndex, dailyCapacity);
     }
 
+    // If no slot found, extend the capacity and place at the end
     if (currentDayIndex >= dailyCapacity.length) {
-      break;
+      extendDailyCapacity(dailyCapacity, ticket.devDays, maxDevelopers);
+      currentDayIndex = dailyCapacity.length - ticket.devDays;
+      // Ensure we start at the earliest valid position
+      if (currentDayIndex < earliestStart) {
+        extendDailyCapacity(dailyCapacity, earliestStart - currentDayIndex + ticket.devDays, maxDevelopers);
+        currentDayIndex = earliestStart;
+      }
     }
 
     const startDay = currentDayIndex;
     const endDay = startDay + ticket.devDays;
-    const sprintId = dailyCapacity[currentDayIndex].sprintId;
+    const sprintId = dailyCapacity[currentDayIndex]?.sprintId ?? 0;
 
     for (let d = startDay; d < endDay && d < dailyCapacity.length; d++) {
       dailyCapacity[d].remainingCapacity -= 1;
@@ -438,7 +513,7 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
 
   // Slot commit epics first (linear scheduling)
   for (const epic of sortedCommits) {
-    const scheduled = slotEpicLinear(epic, tickets, dailyCapacity, nextLinearStartDay);
+    const scheduled = slotEpicLinear(epic, tickets, dailyCapacity, nextLinearStartDay, maxDevelopers);
     allScheduledTickets.push(...scheduled);
 
     if (scheduled.length > 0) {
@@ -469,14 +544,17 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
         }
       }
 
-      const startDayIndex = findNextAvailableSlot(earliestStart, ticket.devDays, dailyCapacity);
+      let startDayIndex = findNextAvailableSlot(earliestStart, ticket.devDays, dailyCapacity);
 
+      // If no slot found, extend the capacity
       if (startDayIndex >= dailyCapacity.length) {
-        break;
+        const daysNeeded = earliestStart + ticket.devDays - dailyCapacity.length + 1;
+        extendDailyCapacity(dailyCapacity, Math.max(daysNeeded, ticket.devDays), maxDevelopers);
+        startDayIndex = findNextAvailableSlot(earliestStart, ticket.devDays, dailyCapacity);
       }
 
       const endDay = startDayIndex + ticket.devDays;
-      const sprintId = dailyCapacity[startDayIndex].sprintId;
+      const sprintId = dailyCapacity[startDayIndex]?.sprintId ?? 0;
 
       for (let d = startDayIndex; d < endDay && d < dailyCapacity.length; d++) {
         dailyCapacity[d].remainingCapacity -= 1;

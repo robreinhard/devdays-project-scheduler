@@ -118,6 +118,7 @@ export const useAppState = (): UseAppStateResult => {
   const updateUrlRef = useRef<(key: string, value: string | null) => void>(() => {});
   updateUrlRef.current = (key: string, value: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
+    console.log(Object.fromEntries(searchParams.entries()));
     if (value) {
       params.set(key, value);
     } else {
@@ -235,8 +236,10 @@ export const useAppState = (): UseAppStateResult => {
       newOverrides = [...existingOverrides, { date, sprintId, capacity }];
     }
 
-    updateUrl(QUERY_PARAM_KEYS.DAILY_CAPS, serializeDailyCapacityOverrides(newOverrides));
-  }, [searchParams, updateUrl]);
+    const overridesNotEqualToMaxDevelopers = newOverrides.filter((o) => o.capacity !== maxDevelopers);
+
+    updateUrl(QUERY_PARAM_KEYS.DAILY_CAPS, serializeDailyCapacityOverrides(overridesNotEqualToMaxDevelopers));
+  }, [searchParams, updateUrl, maxDevelopers]);
 
   const clearDailyCapacityOverrides = useCallback(() => {
     updateUrl(QUERY_PARAM_KEYS.DAILY_CAPS, null);

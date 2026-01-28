@@ -37,6 +37,14 @@ const getStatusColor = (status: string): 'default' | 'primary' | 'success' | 'wa
   return 'default'; // To Do, Open, etc.
 };
 
+// Calculate the "Finished On" date for a ticket (the last work day before endDay)
+const getTicketFinishedOnDate = (projectStartDate: string, endDay: number) => {
+  const startDt = parseDate(projectStartDate);
+  const dayTicketShouldBeComplete = addWorkDays(startDt, endDay);
+  // Subtract 1 day (or 3 if Monday, meaning finished on Friday)
+  return dayTicketShouldBeComplete.minus({ day: dayTicketShouldBeComplete.weekday === 1 ? 3 : 1 });
+};
+
 interface EpicRowProps {
   epic: ScheduledEpic;
   dayWidth: number;
@@ -160,6 +168,11 @@ const EpicRow = ({
         <Collapse in={expanded}>
           {sortedTickets.map((ticket) => {
             const ticketUrl = getJiraUrl(ticket.key);
+            // Check if ticket should be finished by now based on "Finished On" date
+            const finishedOnDate = getTicketFinishedOnDate(startDate, ticket.endDay);
+            const todayDt = today ? parseDate(today) : null;
+            const isPastTicket = todayDt ? finishedOnDate < todayDt : false;
+
             return (
               <Box
                 key={ticket.key}
@@ -173,6 +186,8 @@ const EpicRow = ({
                   borderBottom: 1,
                   borderColor: 'divider',
                   gap: 1,
+                  opacity: isPastTicket ? 0.5 : 1,
+                  bgcolor: isPastTicket ? 'rgba(0,0,0,0.04)' : 'transparent',
                 }}
               >
                 {/* Assignee avatar */}

@@ -125,8 +125,8 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartPr
               borderColor: 'divider',
             }}
           >
-            {/* Header spacer - 4 rows: sprint names, dates, capacity input, usage */}
-            <Box sx={{ height: 108, borderBottom: 1, borderColor: 'divider' }} />
+            {/* Header spacer - 5 rows: months, sprint names, dates, capacity input, usage */}
+            <Box sx={{ height: 132, borderBottom: 1, borderColor: 'divider' }} />
 
             {/* Epic labels */}
             {epics.map((epic, index) => (

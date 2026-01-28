@@ -13,14 +13,16 @@ import type {
 import { parseDate, isWeekend, addWorkDays as addWorkDaysLuxon } from '@/shared/utils/dates';
 
 /**
- * Get all work days in a sprint as an array of date strings
+ * Get all work days in a sprint as an array of date strings.
+ * End date is treated as exclusive (sprint ends at start of endDate, not end of endDate).
+ * This handles adjacent sprints where Sprint A's endDate equals Sprint B's startDate.
  */
 const getSprintWorkDays = (sprint: JiraSprint): string[] => {
   const workDays: string[] = [];
   let current = parseDate(sprint.startDate);
   const end = parseDate(sprint.endDate);
 
-  while (current <= end) {
+  while (current < end) {
     if (!isWeekend(current)) {
       workDays.push(current.toISODate()!);
     }
@@ -43,6 +45,7 @@ interface DayCapacity {
 
 /**
  * Build a map of daily capacities across all sprints
+ * Skips duplicate dates when sprints overlap (e.g., Sprint 1 ends on same day Sprint 2 starts)
  */
 const buildDailyCapacityMap = (
   sprints: SprintWithCapacity[],
@@ -50,12 +53,17 @@ const buildDailyCapacityMap = (
   sprintCapacities: SprintCapacity[]
 ): DayCapacity[] => {
   const days: DayCapacity[] = [];
+  const addedDates = new Set<string>();
 
   for (const sprint of sprints) {
     const workDays = getSprintWorkDays(sprint);
     const sprintCapacity = sprintCapacities.find(sc => sc.sprintId === sprint.id);
+    let sprintDayIndex = 0;
 
-    workDays.forEach((date, index) => {
+    for (const date of workDays) {
+      // Skip if this date was already added from a previous sprint
+      if (addedDates.has(date)) continue;
+
       const dailyOverride = sprintCapacity?.dailyCapacities?.find(dc => dc.date === date);
       const capacity = dailyOverride?.capacity ?? maxDevelopers;
 
@@ -64,9 +72,12 @@ const buildDailyCapacityMap = (
         sprintId: sprint.id,
         originalCapacity: capacity,
         remainingCapacity: capacity,
-        sprintDayIndex: index,
+        sprintDayIndex,
       });
-    });
+
+      addedDates.add(date);
+      sprintDayIndex++;
+    }
   }
 
   return days;

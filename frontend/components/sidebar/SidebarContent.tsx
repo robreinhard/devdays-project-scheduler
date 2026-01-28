@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Button from '@mui/material/Button';
@@ -19,6 +20,8 @@ interface SidebarContentProps {
 }
 
 const SidebarContent = ({ onGenerate, isGenerating = false }: SidebarContentProps) => {
+  const [hasSprintOverlap, setHasSprintOverlap] = useState(false);
+
   const {
     epics,
     epicKeys,
@@ -36,7 +39,11 @@ const SidebarContent = ({ onGenerate, isGenerating = false }: SidebarContentProp
     setMaxDevelopers,
   } = useAppState();
 
-  const canGenerate = epics.length > 0 && sprintCapacities.length > 0;
+  const handleOverlapError = useCallback((hasOverlap: boolean) => {
+    setHasSprintOverlap(hasOverlap);
+  }, []);
+
+  const canGenerate = epics.length > 0 && sprintCapacities.length > 0 && !hasSprintOverlap;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
@@ -49,7 +56,11 @@ const SidebarContent = ({ onGenerate, isGenerating = false }: SidebarContentProp
 
       <Divider />
 
-      {/* Capacity Configuration */}
+      <SprintCapacityEditor
+        sprintCapacities={sprintCapacities}
+        onChange={setSprintCapacities}
+        onOverlapError={handleOverlapError}
+      />
       <Box>
         <Typography variant="subtitle2" gutterBottom>
           Points Per Day (Dev Capacity)
@@ -91,9 +102,14 @@ const SidebarContent = ({ onGenerate, isGenerating = false }: SidebarContentProp
         {isGenerating ? 'Generating...' : 'Generate GANTT'}
       </Button>
 
-      {!canGenerate && (
+      {!canGenerate && !hasSprintOverlap && (
         <Box sx={{ textAlign: 'center', color: 'text.secondary', fontSize: 12 }}>
           Select at least one epic and one sprint to generate
+        </Box>
+      )}
+      {hasSprintOverlap && (
+        <Box sx={{ textAlign: 'center', color: 'error.main', fontSize: 12 }}>
+          Resolve sprint overlap to generate
         </Box>
       )}
     </Box>

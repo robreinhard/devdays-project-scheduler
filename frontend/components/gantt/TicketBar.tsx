@@ -112,6 +112,13 @@ const TicketBar = ({ticket, dayWidth, rowHeight, projectStartDate, epicColor}: T
                         <Typography variant="caption">{ticket.assignee}</Typography>
                     </>
                 )}
+
+                {ticket.blockedBy && ticket.blockedBy.length > 0 && (
+                    <>
+                        <Typography variant="caption" color="text.secondary">Blocked by:</Typography>
+                        <Typography variant="caption">{ticket.blockedBy.join(', ')}</Typography>
+                    </>
+                )}
             </Box>
             {jiraUrl && (
                 <Link

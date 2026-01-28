@@ -109,6 +109,7 @@ export const mapToTicket = (
     devDays,
     blockedBy,
     assignee: issue.fields.assignee?.displayName,
+    assigneeAvatarUrl: issue.fields.assignee?.avatarUrls?.['24x24'],
     isMissingEstimate: !hasEstimate,
   };
 };

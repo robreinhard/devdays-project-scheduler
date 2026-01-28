@@ -27,6 +27,39 @@ const serializeSprintCapacities = (capacities: SprintCapacity[]): string => {
   return capacities.map((sc) => `${sc.sprintId}:${sc.devDaysCapacity}`).join(',');
 };
 
+/**
+ * Daily capacity override with sprint info
+ */
+export interface DailyCapacityOverride {
+  date: string;
+  sprintId: number;
+  capacity: number;
+}
+
+/**
+ * Parse daily capacity overrides from URL format: "2025-01-28:1:3,2025-01-29:1:2"
+ * Format is date:sprintId:capacity
+ */
+const parseDailyCapacityOverrides = (value: string | null): DailyCapacityOverride[] => {
+  if (!value) return [];
+
+  return value.split(',').map((entry) => {
+    const [date, sprintId, capacity] = entry.split(':');
+    return {
+      date,
+      sprintId: parseInt(sprintId, 10),
+      capacity: parseInt(capacity, 10),
+    };
+  }).filter((dc) => dc.date && !isNaN(dc.sprintId) && !isNaN(dc.capacity));
+};
+
+/**
+ * Serialize daily capacity overrides to URL format
+ */
+const serializeDailyCapacityOverrides = (overrides: DailyCapacityOverride[]): string => {
+  return overrides.map((dc) => `${dc.date}:${dc.sprintId}:${dc.capacity}`).join(',');
+};
+
 interface UseAppStateResult {
   // State
   epicKeys: string[];
@@ -35,6 +68,7 @@ interface UseAppStateResult {
   viewStartDate?: string;
   viewEndDate?: string;
   maxDevelopers: number;
+  dailyCapacityOverrides: DailyCapacityOverride[];
   isLoading: boolean;
 
   // Actions
@@ -45,6 +79,8 @@ interface UseAppStateResult {
   setViewStartDate: (date: string | undefined) => void;
   setViewEndDate: (date: string | undefined) => void;
   setMaxDevelopers: (maxDevs: number) => void;
+  setDailyCapacityOverride: (date: string, sprintId: number, capacity: number) => void;
+  clearDailyCapacityOverrides: () => void;
 }
 
 export const useAppState = (): UseAppStateResult => {
@@ -67,6 +103,7 @@ export const useAppState = (): UseAppStateResult => {
   const viewStartDate = searchParams.get(QUERY_PARAM_KEYS.START_DATE) ?? undefined;
   const viewEndDate = searchParams.get(QUERY_PARAM_KEYS.END_DATE) ?? undefined;
   const maxDevelopers = parseInt(searchParams.get(QUERY_PARAM_KEYS.MAX_DEVS) ?? '', 10) || DEFAULT_APP_STATE.maxDevelopers;
+  const dailyCapacityOverrides = parseDailyCapacityOverrides(searchParams.get(QUERY_PARAM_KEYS.DAILY_CAPS));
 
   // Sync pending ref with URL when URL updates
   if (pendingEpicKeysRef.current.length === 0 ||
@@ -165,7 +202,32 @@ export const useAppState = (): UseAppStateResult => {
   }, [updateUrl]);
 
   const setMaxDevelopers = useCallback((maxDevs: number) => {
-    updateUrl(QUERY_PARAM_KEYS.MAX_DEVS, maxDevs.toString());
+    // Clear daily capacity overrides when max developers changes
+    const params = new URLSearchParams(searchParams.toString());
+    params.set(QUERY_PARAM_KEYS.MAX_DEVS, maxDevs.toString());
+    params.delete(QUERY_PARAM_KEYS.DAILY_CAPS);
+    const newUrl = params.toString() ? `?${params.toString()}` : '/';
+    router.push(newUrl, { scroll: false });
+  }, [searchParams, router]);
+
+  const setDailyCapacityOverride = useCallback((date: string, sprintId: number, capacity: number) => {
+    // Update or add the override
+    const existingOverrides = parseDailyCapacityOverrides(searchParams.get(QUERY_PARAM_KEYS.DAILY_CAPS));
+    const existingIndex = existingOverrides.findIndex((o) => o.date === date);
+
+    let newOverrides: DailyCapacityOverride[];
+    if (existingIndex >= 0) {
+      newOverrides = [...existingOverrides];
+      newOverrides[existingIndex] = { date, sprintId, capacity };
+    } else {
+      newOverrides = [...existingOverrides, { date, sprintId, capacity }];
+    }
+
+    updateUrl(QUERY_PARAM_KEYS.DAILY_CAPS, serializeDailyCapacityOverrides(newOverrides));
+  }, [searchParams, updateUrl]);
+
+  const clearDailyCapacityOverrides = useCallback(() => {
+    updateUrl(QUERY_PARAM_KEYS.DAILY_CAPS, null);
   }, [updateUrl]);
 
   // Load epics from URL when epicKeys change
@@ -182,6 +244,7 @@ export const useAppState = (): UseAppStateResult => {
     viewStartDate,
     viewEndDate,
     maxDevelopers,
+    dailyCapacityOverrides,
     isLoading,
     addEpic,
     removeEpic,
@@ -190,5 +253,7 @@ export const useAppState = (): UseAppStateResult => {
     setViewStartDate,
     setViewEndDate,
     setMaxDevelopers,
+    setDailyCapacityOverride,
+    clearDailyCapacityOverrides,
   };
 };

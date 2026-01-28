@@ -26,6 +26,7 @@ export interface JiraTicket {
   devDays: number;       // Custom field: Story Points / Dev Days (default: 5 if missing)
   blockedBy?: string[];  // Ticket keys that block this ticket
   assignee?: string;
+  assigneeAvatarUrl?: string; // Profile photo URL from JIRA
   isMissingEstimate: boolean; // True if devDays was defaulted (no estimate in JIRA)
 }
 
@@ -75,6 +76,12 @@ export interface JiraIssueResponse {
     };
     assignee?: {
       displayName: string;
+      avatarUrls?: {
+        '48x48'?: string;
+        '32x32'?: string;
+        '24x24'?: string;
+        '16x16'?: string;
+      };
     } | null;
     parent?: {
       key: string;

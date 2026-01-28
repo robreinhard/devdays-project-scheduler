@@ -5,10 +5,14 @@ import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
 import IconButton from '@mui/material/IconButton';
 import Collapse from '@mui/material/Collapse';
+import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
+import Avatar from '@mui/material/Avatar';
+import Chip from '@mui/material/Chip';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import type { ScheduledEpic, ScheduledTicket, DayCapacityInfo } from '@/shared/types';
-import { parseDate } from '@/shared/utils/dates';
+import { parseDate, addWorkDays } from '@/shared/utils/dates';
 import TicketBar from './TicketBar';
 
 // JIRA base URL from environment
@@ -16,6 +20,21 @@ const JIRA_BASE_URL = process.env.NEXT_PUBLIC_JIRA_BASE_URL || '';
 
 const getJiraUrl = (key: string): string | null => {
   return JIRA_BASE_URL ? `${JIRA_BASE_URL}/browse/${key}` : null;
+};
+
+// Get status chip color based on status text
+const getStatusColor = (status: string): 'default' | 'primary' | 'success' | 'warning' => {
+  const lowerStatus = status.toLowerCase();
+  if (lowerStatus.includes('done') || lowerStatus.includes('resolved') || lowerStatus.includes('closed')) {
+    return 'success';
+  }
+  if (lowerStatus.includes('progress') || lowerStatus.includes('review')) {
+    return 'primary';
+  }
+  if (lowerStatus.includes('blocked')) {
+    return 'warning';
+  }
+  return 'default'; // To Do, Open, etc.
 };
 
 interface EpicRowProps {
@@ -148,13 +167,26 @@ const EpicRow = ({
                   minHeight: rowHeight,
                   display: 'flex',
                   alignItems: 'center',
-                  pl: 4,
+                  pl: 2,
                   pr: 1,
                   py: 0.5,
                   borderBottom: 1,
                   borderColor: 'divider',
+                  gap: 1,
                 }}
               >
+                {/* Assignee avatar */}
+                <Tooltip title={ticket.assignee || 'Unassigned'} arrow placement="top">
+                  <Avatar
+                    src={ticket.assigneeAvatarUrl}
+                    alt={ticket.assignee}
+                    sx={{ width: 24, height: 24, fontSize: 10, flexShrink: 0 }}
+                  >
+                    {ticket.assignee ? ticket.assignee.charAt(0).toUpperCase() : '?'}
+                  </Avatar>
+                </Tooltip>
+
+                {/* Ticket key and summary */}
                 {ticketUrl ? (
                   <Link
                     href={ticketUrl}
@@ -165,16 +197,33 @@ const EpicRow = ({
                       textDecoration: 'underline',
                       fontSize: 11,
                       flex: 1,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
                       '&:hover': { color: 'primary.main' },
                     }}
                   >
                     {ticket.key} | {ticket.summary}
                   </Link>
                 ) : (
-                  <Box sx={{ fontSize: 11, flex: 1 }}>
+                  <Box sx={{ fontSize: 11, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {ticket.key} | {ticket.summary}
                   </Box>
                 )}
+
+                {/* Status chip */}
+                <Chip
+                  label={ticket.status}
+                  size="small"
+                  color={getStatusColor(ticket.status)}
+                  sx={{
+                    height: 20,
+                    fontSize: 9,
+                    flexShrink: 0,
+                    '& .MuiChip-label': { px: 1 },
+                  }}
+                />
               </Box>
             );
           })}
@@ -182,6 +231,35 @@ const EpicRow = ({
       </Box>
     );
   }
+
+  // Calculate epic dates for tooltip
+  const projectStartDt = parseDate(startDate);
+  const projectedCompleteDt = addWorkDays(projectStartDt, epic.endDay);
+  const projectedCompleteDate = projectedCompleteDt.minus({ day: projectedCompleteDt.weekday === 1 ? 3 : 1 });
+  // Worst case: if all dev days were done sequentially from the epic's start
+  const worstCaseEndDay = epic.startDay + epic.totalDevDays;
+  const worstCaseDt = addWorkDays(projectStartDt, worstCaseEndDay);
+  const worstCaseDate = worstCaseDt.minus({ day: worstCaseDt.weekday === 1 ? 3 : 1 });
+
+  const formatDate = (dt: { toFormat: (fmt: string) => string }) => dt.toFormat('MMM d, yyyy');
+
+  const epicTooltipContent = (
+    <Box sx={{ p: 1 }}>
+      <Typography variant="subtitle2" fontWeight="bold">
+        {epic.key}: {epic.summary}
+      </Typography>
+      <Box sx={{ mt: 1, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 0.5 }}>
+        <Typography variant="caption" color="text.secondary">Dev Days:</Typography>
+        <Typography variant="caption">{epic.totalDevDays}</Typography>
+
+        <Typography variant="caption" color="text.secondary">Projected Complete:</Typography>
+        <Typography variant="caption">{formatDate(projectedCompleteDate)}</Typography>
+
+        <Typography variant="caption" color="text.secondary">Worst Case:</Typography>
+        <Typography variant="caption">{formatDate(worstCaseDate)}</Typography>
+      </Box>
+    </Box>
+  );
 
   // Render the chart area with bars
   return (
@@ -197,17 +275,30 @@ const EpicRow = ({
           bgcolor: epicColor,
         }}
       >
-        <Box
-          sx={{
-            position: 'absolute',
-            left: epicLeft,
-            width: Math.max(epicWidth, 4),
-            height: rowHeight - 8,
-            top: 4,
-            bgcolor: 'rgba(255,255,255,0.3)',
-            borderRadius: 1,
+        <Tooltip
+          title={epicTooltipContent}
+          arrow
+          placement="top"
+          slotProps={{
+            tooltip: {
+              sx: { bgcolor: 'background.paper', color: 'text.primary', boxShadow: 2 },
+            },
+            arrow: { sx: { color: 'background.paper' } },
           }}
-        />
+        >
+          <Box
+            sx={{
+              position: 'absolute',
+              left: epicLeft,
+              width: Math.max(epicWidth, 4),
+              height: rowHeight - 8,
+              top: 4,
+              bgcolor: 'rgba(255,255,255,0.3)',
+              borderRadius: 1,
+              cursor: 'default',
+            }}
+          />
+        </Tooltip>
       </Box>
 
       {/* Ticket bars */}

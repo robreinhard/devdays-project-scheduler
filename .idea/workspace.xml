@@ -4,10 +4,17 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="474dfc4f-f042-40fe-8455-4cf37e89a7a4" name="Changes" comment="feat: remove the concept of &quot;schedule uncertainty&quot;">
+    <list default="true" id="474dfc4f-f042-40fe-8455-4cf37e89a7a4" name="Changes" comment="feat: brightness">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NEXT-TIME.md" beforeDir="false" afterPath="$PROJECT_DIR$/NEXT-TIME.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/jira/mappers.ts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/jira/mappers.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/components/gantt/EpicRow.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/gantt/EpicRow.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/components/gantt/GanttChart.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/gantt/GanttChart.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/components/gantt/TimelineHeader.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/gantt/TimelineHeader.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/gantt/TicketBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/gantt/TicketBar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/hooks/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/hooks/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/hooks/useAppState.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/hooks/useAppState.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/shared/types/app.ts" beforeDir="false" afterPath="$PROJECT_DIR$/shared/types/app.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/shared/types/jira.ts" beforeDir="false" afterPath="$PROJECT_DIR$/shared/types/jira.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -75,7 +82,7 @@
       <option name="presentableId" value="Default" />
       <updated>1769386885865</updated>
       <workItem from="1769386887099" duration="1928000" />
-      <workItem from="1769611171196" duration="745000" />
+      <workItem from="1769611171196" duration="2913000" />
     </task>
     <task id="LOCAL-00001" summary="fix: capacity per day is now working">
       <option name="closed" value="true" />
@@ -101,7 +108,15 @@
       <option name="project" value="LOCAL" />
       <updated>1769611288198</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="feat: brightness">
+      <option name="closed" value="true" />
+      <created>1769614673031</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1769614673031</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -111,14 +126,15 @@
     <MESSAGE value="fix: capacity per day is now working" />
     <MESSAGE value="feat: last PR before moving to topological sort" />
     <MESSAGE value="feat: remove the concept of &quot;schedule uncertainty&quot;" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: remove the concept of &quot;schedule uncertainty&quot;" />
+    <MESSAGE value="feat: brightness" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: brightness" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" type="javascript">
           <url>file://$PROJECT_DIR$/app/page.tsx</url>
-          <line>73</line>
+          <line>66</line>
           <option name="timeStamp" value="1" />
         </line-breakpoint>
       </breakpoints>

@@ -30,4 +30,5 @@ export const QUERY_PARAM_KEYS = {
   START_DATE: 'start',
   END_DATE: 'end',
   MAX_DEVS: 'maxDevs',
+  DAILY_CAPS: 'dc',
 } as const;

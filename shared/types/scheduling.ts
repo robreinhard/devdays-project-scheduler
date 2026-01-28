@@ -33,7 +33,6 @@ export interface ScheduledTicket extends JiraTicket {
   endDay: number;        // Day offset from project start (work days)
   sprintId: number;      // Which sprint it's slotted in
   parallelGroup: number; // Topological level (0 = no deps, higher = more deps)
-  isUncertain: boolean;  // True if this ticket follows a missing-estimate ticket (show gray)
   criticalPathWeight: number; // Total dev days of this ticket + all downstream tickets
   isOnCriticalPath: boolean; // True if this ticket is on the critical path
 }

@@ -292,7 +292,6 @@ const slotEpicLinear = (
 
   // Track end days for each scheduled ticket (for dependency resolution)
   const ticketEndDays = new Map<string, number>();
-  let hasSeenMissingEstimate = false;
 
   // Process tickets in topological order (dependencies always come first)
   for (const ticket of epicTickets) {
@@ -325,11 +324,6 @@ const slotEpicLinear = (
       break;
     }
 
-    const isUncertain = hasSeenMissingEstimate;
-    if (ticket.isMissingEstimate) {
-      hasSeenMissingEstimate = true;
-    }
-
     const startDay = currentDayIndex;
     const endDay = startDay + ticket.devDays;
     const sprintId = dailyCapacity[currentDayIndex].sprintId;
@@ -346,7 +340,6 @@ const slotEpicLinear = (
       endDay,
       sprintId,
       parallelGroup: ticket.level,
-      isUncertain,
       criticalPathWeight: ticket.downstreamWeight,
       isOnCriticalPath: false,
     });
@@ -461,7 +454,6 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
 
     // Track end days for each scheduled ticket (for dependency resolution)
     const ticketEndDays = new Map<string, number>();
-    let hasSeenMissingEstimate = false;
 
     // Process tickets in topological order
     for (const ticket of epicTickets) {
@@ -483,11 +475,6 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
         break;
       }
 
-      const isUncertain = hasSeenMissingEstimate;
-      if (ticket.isMissingEstimate) {
-        hasSeenMissingEstimate = true;
-      }
-
       const endDay = startDayIndex + ticket.devDays;
       const sprintId = dailyCapacity[startDayIndex].sprintId;
 
@@ -503,7 +490,6 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
         endDay,
         sprintId,
         parallelGroup: ticket.level,
-        isUncertain,
         criticalPathWeight: ticket.downstreamWeight,
         isOnCriticalPath: false,
       });

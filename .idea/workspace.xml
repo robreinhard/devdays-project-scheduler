@@ -4,20 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="474dfc4f-f042-40fe-8455-4cf37e89a7a4" name="Changes" comment="feat: last PR before moving to topological sort">
-      <change afterPath="$PROJECT_DIR$/NEXT-TIME.md" afterDir="false" />
+    <list default="true" id="474dfc4f-f042-40fe-8455-4cf37e89a7a4" name="Changes" comment="feat: planning bells and whistles">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CLAUDE-PROGRESS.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/IMPLEMENTATION-PLAN.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/epics/[key]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/epics/[key]/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/jira/client.ts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/jira/client.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/jira/mappers.ts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/jira/mappers.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NEXT-TIME.md" beforeDir="false" afterPath="$PROJECT_DIR$/NEXT-TIME.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/scheduler/algorithm.ts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/scheduler/algorithm.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/components/gantt/EpicRow.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/gantt/EpicRow.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/components/gantt/TicketBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/gantt/TicketBar.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/shared/scheduler/algorithm.ts" beforeDir="false" afterPath="$PROJECT_DIR$/shared/scheduler/algorithm.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/shared/types/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/shared/types/index.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/shared/types/jira.ts" beforeDir="false" afterPath="$PROJECT_DIR$/shared/types/jira.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/shared/types/scheduling.ts" beforeDir="false" afterPath="$PROJECT_DIR$/shared/types/scheduling.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -86,6 +78,7 @@
       <option name="presentableId" value="Default" />
       <updated>1769386885865</updated>
       <workItem from="1769386887099" duration="1928000" />
+      <workItem from="1769611171196" duration="48000" />
     </task>
     <task id="LOCAL-00001" summary="fix: capacity per day is now working">
       <option name="closed" value="true" />

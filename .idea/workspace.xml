@@ -4,9 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="474dfc4f-f042-40fe-8455-4cf37e89a7a4" name="Changes" comment="feat: useState hooks">
+    <list default="true" id="474dfc4f-f042-40fe-8455-4cf37e89a7a4" name="Changes" comment="feat: lint">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/hooks/useAppState.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/hooks/useAppState.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NEXT-TIME.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -74,7 +75,7 @@
       <option name="presentableId" value="Default" />
       <updated>1769386885865</updated>
       <workItem from="1769386887099" duration="1928000" />
-      <workItem from="1769611171196" duration="12645000" />
+      <workItem from="1769611171196" duration="13483000" />
     </task>
     <task id="LOCAL-00001" summary="fix: capacity per day is now working">
       <option name="closed" value="true" />
@@ -156,7 +157,15 @@
       <option name="project" value="LOCAL" />
       <updated>1769697466792</updated>
     </task>
-    <option name="localTasksCounter" value="11" />
+    <task id="LOCAL-00011" summary="feat: lint">
+      <option name="closed" value="true" />
+      <created>1769698871074</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1769698871074</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -173,7 +182,8 @@
     <MESSAGE value="feat: dependency lines" />
     <MESSAGE value="feat: sprints must have start date and end date, epics clear on select from dropdown" />
     <MESSAGE value="feat: useState hooks" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: useState hooks" />
+    <MESSAGE value="feat: lint" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: lint" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -185,9 +195,15 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" type="javascript">
           <url>file://$PROJECT_DIR$/frontend/hooks/useAppState.ts</url>
-          <line>116</line>
+          <line>122</line>
           <properties lambdaOrdinal="-1" />
           <option name="timeStamp" value="2" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="javascript">
+          <url>file://$PROJECT_DIR$/frontend/hooks/useAppState.ts</url>
+          <line>127</line>
+          <properties lambdaOrdinal="-1" />
+          <option name="timeStamp" value="3" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

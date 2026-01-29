@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dev Days Project Scheduler
+
+> **ALPHA** - This project is in early development and may have breaking changes.
+
+A JIRA-powered GANTT chart visualization tool for estimating and scheduling work using "Dev Days" as the unit of effort.
+
+**Vibecoded** with [Claude Code](https://claude.ai/code) | Architecture by Rob Reinhard
+
+## What is a "Dev Day"?
+
+A **Dev Day** is a unit of effort representing one developer working for one day. Unlike story points, Dev Days translate directly to calendar time, making project timelines easier to communicate and plan.
+
+- 1 Dev Day = 1 developer × 1 day of work
+- Dev Days account for team capacity and parallel work
+
+## Features
+
+- Interactive GANTT chart visualization of JIRA issues
+- Automatic scheduling based on Dev Day estimates and team capacity
+- Sprint-aware timeline calculations
+- Epic grouping and filtering
+- Dependency visualization between issues
+- Configurable developer capacity per sprint
+- Drag-and-drop timeline ordering
+
+## Tech Stack
+
+- **Framework**: Next.js 16
+- **UI**: Material UI (MUI) 7
+- **Language**: TypeScript
+- **Date Handling**: Luxon, Day.js
+- **Data Source**: JIRA Cloud REST API
+
+## Environment Variables
+
+Create a `.env.local` file based on `.env.local.example`:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `JIRA_BASE_URL` | Yes | Your JIRA instance URL (e.g., `https://yourcompany.atlassian.net`) |
+| `JIRA_EMAIL` | Yes | Email for JIRA API authentication |
+| `JIRA_API_TOKEN` | Yes | API token from [Atlassian Account Settings](https://id.atlassian.com/manage-profile/security/api-tokens) |
+| `JIRA_FIELD_DEV_DAYS` | Yes | Custom field ID for Dev Days estimates |
+| `JIRA_FIELD_TIMELINE_ORDER` | Yes | Custom field ID for timeline ordering |
+| `JIRA_BOARD_ID` | Yes | Board ID for fetching sprints |
+| `NEXT_PUBLIC_JIRA_BASE_URL` | No | Public JIRA URL for issue links (defaults to `JIRA_BASE_URL`) |
+| `NEXT_PUBLIC_TIMEZONE` | No | IANA timezone identifier (default: `America/Chicago`) |
 
 ## Getting Started
 
-First, run the development server:
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/devdays-project-scheduler.git
+   cd devdays-project-scheduler
+   ```
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. Configure environment variables:
+   ```bash
+   cp .env.local.example .env.local
+   # Edit .env.local with your JIRA credentials and field IDs
+   ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+4. Run the development server:
+   ```bash
+   npm run dev
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Learn More
+## License
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

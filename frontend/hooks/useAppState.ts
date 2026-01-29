@@ -62,6 +62,8 @@ const serializeDailyCapacityOverrides = (overrides: DailyCapacityOverride[]): st
 
 interface UseAppStateResult {
   // State
+  projectKey?: string;
+  boardId?: number;
   epicKeys: string[];
   epics: JiraEpic[];
   sprintCapacities: SprintCapacity[];
@@ -72,6 +74,8 @@ interface UseAppStateResult {
   isLoading: boolean;
 
   // Actions
+  setProjectKey: (projectKey: string | undefined) => void;
+  setBoardId: (boardId: number | undefined) => void;
   addEpic: (epic: JiraEpic) => void;
   removeEpic: (epicKey: string) => void;
   loadEpicsByKeys: (keys: string[]) => Promise<void>;
@@ -101,6 +105,9 @@ export const useAppState = (): UseAppStateResult => {
   });
 
   // Parse state from URL - this is the source of truth
+  const projectKey = searchParams.get(QUERY_PARAM_KEYS.PROJECT) ?? undefined;
+  const boardIdParam = searchParams.get(QUERY_PARAM_KEYS.BOARD);
+  const boardId = boardIdParam ? parseInt(boardIdParam, 10) : undefined;
   const epicKeysParam = searchParams.get(QUERY_PARAM_KEYS.EPICS);
   const epicKeys = useMemo(
     () => epicKeysParam?.split(',').filter(Boolean) ?? [],
@@ -125,6 +132,35 @@ export const useAppState = (): UseAppStateResult => {
   }, [router]);
 
   // Actions
+  const setProjectKey = useCallback((newProjectKey: string | undefined) => {
+    // Clear dependent state: boardId, sprints, dailyCapacities
+    const params = new URLSearchParams(searchParamsRef.current.toString());
+    if (newProjectKey) {
+      params.set(QUERY_PARAM_KEYS.PROJECT, newProjectKey);
+    } else {
+      params.delete(QUERY_PARAM_KEYS.PROJECT);
+    }
+    params.delete(QUERY_PARAM_KEYS.BOARD);
+    params.delete(QUERY_PARAM_KEYS.SPRINTS);
+    params.delete(QUERY_PARAM_KEYS.DAILY_CAPS);
+    const newUrl = params.toString() ? `?${params.toString()}` : '/';
+    router.push(newUrl, { scroll: false });
+  }, [router]);
+
+  const setBoardId = useCallback((newBoardId: number | undefined) => {
+    // Clear dependent state: sprints, dailyCapacities
+    const params = new URLSearchParams(searchParamsRef.current.toString());
+    if (newBoardId !== undefined) {
+      params.set(QUERY_PARAM_KEYS.BOARD, newBoardId.toString());
+    } else {
+      params.delete(QUERY_PARAM_KEYS.BOARD);
+    }
+    params.delete(QUERY_PARAM_KEYS.SPRINTS);
+    params.delete(QUERY_PARAM_KEYS.DAILY_CAPS);
+    const newUrl = params.toString() ? `?${params.toString()}` : '/';
+    router.push(newUrl, { scroll: false });
+  }, [router]);
+
   const addEpic = useCallback((epic: JiraEpic) => {
     // Add to local state
     setEpics((prev) => {
@@ -235,6 +271,8 @@ export const useAppState = (): UseAppStateResult => {
   }, [epicKeys, loadEpicsByKeys]);
 
   return {
+    projectKey,
+    boardId,
     epicKeys,
     epics,
     sprintCapacities,
@@ -243,6 +281,8 @@ export const useAppState = (): UseAppStateResult => {
     maxDevelopers,
     dailyCapacityOverrides,
     isLoading,
+    setProjectKey,
+    setBoardId,
     addEpic,
     removeEpic,
     loadEpicsByKeys,

@@ -3,8 +3,12 @@ import type {
   JiraEpic,
   JiraTicket,
   JiraSprint,
+  JiraProject,
+  JiraBoard,
   JiraIssueResponse,
   JiraSprintResponse,
+  JiraProjectResponse,
+  JiraBoardResponse,
   JiraIssueLink,
 } from '@/shared/types';
 
@@ -146,3 +150,32 @@ export const mapToTickets = (
  */
 export const mapToSprints = (sprints: JiraSprintResponse[]): JiraSprint[] =>
   sprints.map(mapToSprint);
+
+/**
+ * Map a JIRA project response to a JiraProject
+ */
+export const mapToProject = (project: JiraProjectResponse): JiraProject => ({
+  key: project.key,
+  name: project.name,
+});
+
+/**
+ * Map multiple projects
+ */
+export const mapToProjects = (projects: JiraProjectResponse[]): JiraProject[] =>
+  projects.map(mapToProject);
+
+/**
+ * Map a JIRA board response to a JiraBoard
+ */
+export const mapToBoard = (board: JiraBoardResponse): JiraBoard => ({
+  id: board.id,
+  name: board.name,
+  type: board.type,
+});
+
+/**
+ * Map multiple boards
+ */
+export const mapToBoards = (boards: JiraBoardResponse[]): JiraBoard[] =>
+  boards.map(mapToBoard);

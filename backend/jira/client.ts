@@ -2,6 +2,8 @@ import type {
   JiraSearchResponse,
   JiraSprintResponse,
   JiraIssueResponse,
+  JiraProjectResponse,
+  JiraBoardResponse,
 } from '@/shared/types';
 
 /**
@@ -146,17 +148,50 @@ export class JiraClient {
   };
 
   /**
-   * Get sprints from the configured board
+   * Get sprints from a board (uses provided boardId or falls back to configured board)
    */
-  getSprints = async (state?: 'active' | 'closed' | 'future'): Promise<JiraSprintResponse[]> => {
+  getSprints = async (state?: 'active' | 'closed' | 'future', boardId?: number): Promise<JiraSprintResponse[]> => {
     const params = new URLSearchParams();
     if (state) {
       params.set('state', state);
     }
 
-    const endpoint = `/rest/agile/1.0/board/${this.config.boardId}/sprint?${params}`;
+    const targetBoardId = boardId ?? this.config.boardId;
+    const endpoint = `/rest/agile/1.0/board/${targetBoardId}/sprint?${params}`;
 
     const response = await this.fetch<{ values: JiraSprintResponse[] }>(endpoint);
+    return response.values;
+  };
+
+  /**
+   * Get all accessible projects
+   */
+  getProjects = async (): Promise<JiraProjectResponse[]> => {
+    return this.fetch<JiraProjectResponse[]>('/rest/api/3/project');
+  };
+
+  /**
+   * Search projects by key or name
+   */
+  searchProjects = async (query: string): Promise<JiraProjectResponse[]> => {
+    const allProjects = await this.getProjects();
+    const lowerQuery = query.toLowerCase();
+    return allProjects.filter(
+      (p) =>
+        p.key.toLowerCase().includes(lowerQuery) ||
+        p.name.toLowerCase().includes(lowerQuery)
+    );
+  };
+
+  /**
+   * Get boards for a specific project
+   */
+  getBoardsForProject = async (projectKey: string): Promise<JiraBoardResponse[]> => {
+    const params = new URLSearchParams();
+    params.set('projectKeyOrId', projectKey);
+
+    const endpoint = `/rest/agile/1.0/board?${params}`;
+    const response = await this.fetch<{ values: JiraBoardResponse[] }>(endpoint);
     return response.values;
   };
 

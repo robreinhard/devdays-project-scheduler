@@ -17,6 +17,9 @@ import EpicSearch from './EpicSearch';
 import EpicKeyPaste from './EpicKeyPaste';
 import SelectedEpics from './SelectedEpics';
 import SprintCapacityEditor from './SprintCapacityEditor';
+import ProjectSearch from './ProjectSearch';
+import BoardSelector from './BoardSelector';
+import type { JiraProject } from '@/shared/types';
 
 interface SidebarContentProps {
   isGenerating?: boolean;
@@ -27,12 +30,16 @@ const SidebarContent = ({ isGenerating = false }: SidebarContentProps) => {
   const [pendingMaxDevelopers, setPendingMaxDevelopers] = useState<number | null>(null);
 
   const {
+    projectKey,
+    boardId,
     epics,
     epicKeys,
     sprintCapacities,
     maxDevelopers,
     dailyCapacityOverrides,
     isLoading,
+    setProjectKey,
+    setBoardId,
     addEpic,
     removeEpic,
     loadEpicsByKeys,
@@ -45,10 +52,22 @@ const SidebarContent = ({ isGenerating = false }: SidebarContentProps) => {
   }, []);
 
   // Workflow state
+  const hasProjectSelected = !!projectKey;
+  const hasBoardSelected = !!boardId;
   const hasSprintsSelected = sprintCapacities.length > 0 && !hasSprintOverlap;
   const hasPointsPerDay = maxDevelopers > 0;
+  const canSelectSprints = hasBoardSelected;
+  const canSelectPointsPerDay = hasSprintsSelected;
   const canSelectEpics = hasSprintsSelected && hasPointsPerDay;
   const hasDailyOverrides = dailyCapacityOverrides.length > 0;
+
+  const handleProjectSelect = useCallback((project: JiraProject) => {
+    setProjectKey(project.key);
+  }, [setProjectKey]);
+
+  const handleBoardSelect = useCallback((selectedBoardId: number) => {
+    setBoardId(selectedBoardId);
+  }, [setBoardId]);
 
   // Handle points per day change with confirmation if there are overrides
   const handlePointsPerDayChange = (value: number) => {
@@ -76,8 +95,80 @@ const SidebarContent = ({ isGenerating = false }: SidebarContentProps) => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-      {/* Step 1: Sprint Selection */}
+      {/* Step 1: Project Selection */}
       <Box>
+        <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box
+            component="span"
+            sx={{
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              bgcolor: hasProjectSelected ? 'success.main' : 'grey.400',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 12,
+              fontWeight: 'bold',
+            }}
+          >
+            1
+          </Box>
+          Select Project
+        </Typography>
+        <ProjectSearch
+          onProjectSelect={handleProjectSelect}
+          selectedProjectKey={projectKey}
+        />
+        {projectKey && (
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+            Selected: {projectKey}
+          </Typography>
+        )}
+      </Box>
+
+      <Divider />
+
+      {/* Step 2: Board Selection */}
+      <Box sx={{ opacity: hasProjectSelected ? 1 : 0.5 }}>
+        <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box
+            component="span"
+            sx={{
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              bgcolor: hasBoardSelected ? 'success.main' : 'grey.400',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 12,
+              fontWeight: 'bold',
+            }}
+          >
+            2
+          </Box>
+          Select Board
+        </Typography>
+        <BoardSelector
+          projectKey={projectKey}
+          selectedBoardId={boardId}
+          onBoardSelect={handleBoardSelect}
+          disabled={!hasProjectSelected}
+        />
+        {!hasProjectSelected && (
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            Select a project first
+          </Typography>
+        )}
+      </Box>
+
+      <Divider />
+
+      {/* Step 3: Sprint Selection */}
+      <Box sx={{ opacity: canSelectSprints ? 1 : 0.5 }}>
         <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Box
             component="span"
@@ -94,7 +185,7 @@ const SidebarContent = ({ isGenerating = false }: SidebarContentProps) => {
               fontWeight: 'bold',
             }}
           >
-            1
+            3
           </Box>
           Select Sprints
         </Typography>
@@ -102,13 +193,19 @@ const SidebarContent = ({ isGenerating = false }: SidebarContentProps) => {
           sprintCapacities={sprintCapacities}
           onChange={setSprintCapacities}
           onOverlapError={handleOverlapError}
+          boardId={boardId}
         />
+        {!canSelectSprints && (
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            Select a board first
+          </Typography>
+        )}
       </Box>
 
       <Divider />
 
-      {/* Step 2: Points Per Day */}
-      <Box sx={{ opacity: hasSprintsSelected ? 1 : 0.5 }}>
+      {/* Step 4: Points Per Day */}
+      <Box sx={{ opacity: canSelectPointsPerDay ? 1 : 0.5 }}>
         <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Box
             component="span"
@@ -116,7 +213,7 @@ const SidebarContent = ({ isGenerating = false }: SidebarContentProps) => {
               width: 20,
               height: 20,
               borderRadius: '50%',
-              bgcolor: hasSprintsSelected && hasPointsPerDay ? 'success.main' : 'grey.400',
+              bgcolor: canSelectPointsPerDay && hasPointsPerDay ? 'success.main' : 'grey.400',
               color: 'white',
               display: 'flex',
               alignItems: 'center',
@@ -125,7 +222,7 @@ const SidebarContent = ({ isGenerating = false }: SidebarContentProps) => {
               fontWeight: 'bold',
             }}
           >
-            2
+            4
           </Box>
           Points Per Day
         </Typography>
@@ -135,7 +232,7 @@ const SidebarContent = ({ isGenerating = false }: SidebarContentProps) => {
           fullWidth
           value={maxDevelopers}
           onChange={(e) => handlePointsPerDayChange(parseInt(e.target.value, 10))}
-          disabled={!hasSprintsSelected}
+          disabled={!canSelectPointsPerDay}
           inputProps={{ min: 1 }}
           helperText="Story points that can be completed per day. Roughly corresponds to number of developers on team."
         />
@@ -144,11 +241,16 @@ const SidebarContent = ({ isGenerating = false }: SidebarContentProps) => {
             {dailyCapacityOverrides.length} custom day capacity override{dailyCapacityOverrides.length > 1 ? 's' : ''} active
           </Alert>
         )}
+        {!canSelectPointsPerDay && (
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            Select sprints first
+          </Typography>
+        )}
       </Box>
 
       <Divider />
 
-      {/* Step 3: Epic Selection */}
+      {/* Step 5: Epic Selection */}
       <Box sx={{ opacity: canSelectEpics ? 1 : 0.5 }}>
         <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Box
@@ -166,7 +268,7 @@ const SidebarContent = ({ isGenerating = false }: SidebarContentProps) => {
               fontWeight: 'bold',
             }}
           >
-            3
+            5
           </Box>
           Select Epics
         </Typography>

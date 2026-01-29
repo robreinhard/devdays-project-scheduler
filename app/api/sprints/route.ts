@@ -5,10 +5,12 @@ import { parseDate } from '@/shared/utils/dates';
 export const GET = async (request: NextRequest) => {
   const searchParams = request.nextUrl.searchParams;
   const state = searchParams.get('state') as 'active' | 'closed' | 'future' | null;
+  const boardIdParam = searchParams.get('boardId');
+  const boardId = boardIdParam ? parseInt(boardIdParam, 10) : undefined;
 
   try {
     const client = getJiraClient();
-    const sprintsResponse = await client.getSprints(state ?? undefined);
+    const sprintsResponse = await client.getSprints(state ?? undefined, boardId);
     const sprints = mapToSprints(sprintsResponse);
 
     // Sort by start date (most recent first for active/future, oldest first for closed)

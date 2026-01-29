@@ -4,10 +4,14 @@ export type {
   JiraEpic,
   JiraTicket,
   JiraSprint,
+  JiraProject,
+  JiraBoard,
   JiraIssueLink,
   JiraIssueResponse,
   JiraSprintResponse,
   JiraSearchResponse,
+  JiraProjectResponse,
+  JiraBoardResponse,
 } from './jira';
 
 // Scheduling types

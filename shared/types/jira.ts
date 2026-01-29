@@ -106,3 +106,25 @@ export interface JiraSearchResponse {
   maxResults: number;
   startAt: number;
 }
+
+export interface JiraProject {
+  key: string;      // e.g., "PROJ"
+  name: string;     // e.g., "Project Name"
+}
+
+export interface JiraBoard {
+  id: number;
+  name: string;
+  type: string;     // 'scrum' | 'kanban' | 'simple'
+}
+
+export interface JiraProjectResponse {
+  key: string;
+  name: string;
+}
+
+export interface JiraBoardResponse {
+  id: number;
+  name: string;
+  type: string;
+}

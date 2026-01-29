@@ -59,6 +59,7 @@ interface SprintCapacityEditorProps {
   onChange: (capacities: SprintCapacity[]) => void;
   onOverlapError?: (hasOverlap: boolean) => void;
   defaultCapacity?: number;
+  boardId?: number;
 }
 
 const SprintCapacityEditor = ({
@@ -66,6 +67,7 @@ const SprintCapacityEditor = ({
   onChange,
   onOverlapError,
   defaultCapacity = 20,
+  boardId,
 }: SprintCapacityEditorProps) => {
   const [sprints, setSprints] = useState<JiraSprint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,9 +89,17 @@ const SprintCapacityEditor = ({
   }, [overlaps.length, onOverlapError]);
 
   useEffect(() => {
+    if (boardId === undefined) {
+      setSprints([]);
+      setLoading(false);
+      return;
+    }
+
     const fetchSprints = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        const response = await fetch('/api/sprints');
+        const response = await fetch(`/api/sprints?boardId=${boardId}`);
         const data = await response.json();
 
         if (data.error) {
@@ -109,7 +119,7 @@ const SprintCapacityEditor = ({
     };
 
     fetchSprints();
-  }, []);
+  }, [boardId]);
 
   const isSelected = (sprintId: number) =>
     sprintCapacities.some((sc) => sc.sprintId === sprintId);
@@ -138,6 +148,16 @@ const SprintCapacityEditor = ({
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="body2" color="error">
           {error}
+        </Typography>
+      </Paper>
+    );
+  }
+
+  if (boardId === undefined) {
+    return (
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Typography variant="body2" color="text.secondary">
+          Select a board to view sprints
         </Typography>
       </Paper>
     );

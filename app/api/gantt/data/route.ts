@@ -1,0 +1,98 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getJiraClient, mapToEpic, mapToTickets, mapToSprints } from '@/backend/jira';
+import type { JiraEpic, JiraTicket, JiraSprint } from '@/shared/types';
+
+interface DataRequest {
+  epicKeys: string[];
+  sprintIds: number[];
+}
+
+export interface GanttDataResponse {
+  epics: JiraEpic[];
+  tickets: JiraTicket[];
+  sprints: JiraSprint[];
+}
+
+export const POST = async (request: NextRequest) => {
+  try {
+    const body: DataRequest = await request.json();
+    const { epicKeys, sprintIds } = body;
+
+    // Validate input
+    if (!epicKeys || epicKeys.length === 0) {
+      return NextResponse.json(
+        { error: 'At least one epic key is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!sprintIds || sprintIds.length === 0) {
+      return NextResponse.json(
+        { error: 'At least one sprint ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const client = getJiraClient();
+    const fieldConfig = client.getFieldConfig();
+
+    // Fetch all epics and their tickets
+    const epics: JiraEpic[] = [];
+    const allTickets: JiraTicket[] = [];
+
+    for (const epicKey of epicKeys) {
+      try {
+        const epicResponse = await client.getIssue(epicKey);
+        const epic = mapToEpic(epicResponse);
+        epics.push(epic);
+
+        const issuesResponse = await client.getEpicIssues(epicKey);
+        const tickets = mapToTickets(issuesResponse.issues, epicKey, fieldConfig);
+        allTickets.push(...tickets);
+      } catch (error) {
+        console.error(`Failed to fetch epic ${epicKey}:`, error);
+        return NextResponse.json(
+          {
+            error: `Failed to fetch epic ${epicKey}`,
+            message: `Could not load epic "${epicKey}" - verify it exists`,
+          },
+          { status: 404 }
+        );
+      }
+    }
+
+    // Fetch sprints
+    const sprintsResponse = await client.getSprints();
+    const allSprints = mapToSprints(sprintsResponse);
+    const selectedSprints = allSprints.filter((s) => sprintIds.includes(s.id));
+
+    if (selectedSprints.length === 0) {
+      return NextResponse.json(
+        {
+          error: 'No valid sprints found',
+          message: 'None of the selected sprint IDs were found',
+        },
+        { status: 400 }
+      );
+    }
+
+    const response: GanttDataResponse = {
+      epics,
+      tickets: allTickets,
+      sprints: selectedSprints,
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('GANTT data fetch failed:', error);
+
+    return NextResponse.json(
+      {
+        error: message,
+        message: `Data fetch failed: ${message}`,
+      },
+      { status: 500 }
+    );
+  }
+};

@@ -156,7 +156,6 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartPr
               sprints={sprints}
               dailyCapacities={dailyCapacities}
               startDate={projectStartDate}
-              totalDays={totalDisplayDays}
               dayWidth={DAY_WIDTH}
               maxDevelopers={maxDevelopers}
               onDailyCapacityChange={onDailyCapacityChange}

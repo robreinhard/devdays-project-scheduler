@@ -101,7 +101,7 @@ const SprintCapacityEditor = ({
           );
           setSprints(sprintsWithDates);
         }
-      } catch (err) {
+      } catch {
         setError('Failed to load sprints');
       } finally {
         setLoading(false);

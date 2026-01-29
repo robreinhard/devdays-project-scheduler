@@ -12,7 +12,6 @@ interface TimelineHeaderProps {
     sprints: SprintWithCapacity[];
     dailyCapacities?: DayCapacityInfo[];
     startDate: string;
-    totalDays: number;
     dayWidth: number;
     maxDevelopers: number;
     onDailyCapacityChange?: (dayIndex: number, date: string, capacity: number) => void;
@@ -23,7 +22,6 @@ const TimelineHeader = ({
                             sprints,
                             dailyCapacities,
                             startDate,
-                            totalDays,
                             dayWidth,
                             maxDevelopers,
                             onDailyCapacityChange,

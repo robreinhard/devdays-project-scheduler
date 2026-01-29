@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, startTransition, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { JiraEpic, SprintCapacity } from '@/shared/types';
 import { DEFAULT_APP_STATE, QUERY_PARAM_KEYS } from '@/shared/types';
@@ -94,8 +94,18 @@ export const useAppState = (): UseAppStateResult => {
   // Track loaded epic keys to prevent duplicates (only accessed in callbacks/effects)
   const loadedKeysRef = useRef<Set<string>>(new Set());
 
+  // Ref to hold latest searchParams for stable callbacks
+  const searchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    searchParamsRef.current = searchParams;
+  });
+
   // Parse state from URL - this is the source of truth
-  const epicKeys = searchParams.get(QUERY_PARAM_KEYS.EPICS)?.split(',').filter(Boolean) ?? [];
+  const epicKeysParam = searchParams.get(QUERY_PARAM_KEYS.EPICS);
+  const epicKeys = useMemo(
+    () => epicKeysParam?.split(',').filter(Boolean) ?? [],
+    [epicKeysParam]
+  );
   const sprintCapacities = parseSprintCapacities(searchParams.get(QUERY_PARAM_KEYS.SPRINTS));
   const viewStartDate = searchParams.get(QUERY_PARAM_KEYS.START_DATE) ?? undefined;
   const viewEndDate = searchParams.get(QUERY_PARAM_KEYS.END_DATE) ?? undefined;
@@ -104,7 +114,7 @@ export const useAppState = (): UseAppStateResult => {
 
   // Update URL helper
   const updateUrl = useCallback((key: string, value: string | null) => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParamsRef.current.toString());
     if (value) {
       params.set(key, value);
     } else {
@@ -112,7 +122,7 @@ export const useAppState = (): UseAppStateResult => {
     }
     const newUrl = params.toString() ? `?${params.toString()}` : '/';
     router.push(newUrl, { scroll: false });
-  }, [searchParams, router]);
+  }, [router]);
 
   // Actions
   const addEpic = useCallback((epic: JiraEpic) => {
@@ -122,22 +132,22 @@ export const useAppState = (): UseAppStateResult => {
       return [...prev, epic];
     });
 
-    // Update URL - read current epicKeys from searchParams
-    const currentKeys = searchParams.get(QUERY_PARAM_KEYS.EPICS)?.split(',').filter(Boolean) ?? [];
+    // Update URL - read current epicKeys from searchParams ref
+    const currentKeys = searchParamsRef.current.get(QUERY_PARAM_KEYS.EPICS)?.split(',').filter(Boolean) ?? [];
     if (!currentKeys.includes(epic.key)) {
       const newKeys = [...currentKeys, epic.key];
       updateUrl(QUERY_PARAM_KEYS.EPICS, newKeys.join(','));
     }
-  }, [searchParams, updateUrl]);
+  }, [updateUrl]);
 
   const removeEpic = useCallback((epicKey: string) => {
     setEpics((prev) => prev.filter((e) => e.key !== epicKey));
 
-    // Update URL - read current epicKeys from searchParams
-    const currentKeys = searchParams.get(QUERY_PARAM_KEYS.EPICS)?.split(',').filter(Boolean) ?? [];
+    // Update URL - read current epicKeys from searchParams ref
+    const currentKeys = searchParamsRef.current.get(QUERY_PARAM_KEYS.EPICS)?.split(',').filter(Boolean) ?? [];
     const newKeys = currentKeys.filter((k) => k !== epicKey);
     updateUrl(QUERY_PARAM_KEYS.EPICS, newKeys.length > 0 ? newKeys.join(',') : null);
-  }, [searchParams, updateUrl]);
+  }, [updateUrl]);
 
   const loadEpicsByKeys = useCallback(async (keys: string[]) => {
     const keysToLoad = keys.filter((key) => !loadedKeysRef.current.has(key));
@@ -161,7 +171,11 @@ export const useAppState = (): UseAppStateResult => {
     }
 
     if (newEpics.length > 0) {
-      setEpics((prev) => [...prev, ...newEpics]);
+      setEpics((prev) => {
+        const existingKeys = new Set(prev.map((e) => e.key));
+        const uniqueNewEpics = newEpics.filter((e) => !existingKeys.has(e.key));
+        return uniqueNewEpics.length > 0 ? [...prev, ...uniqueNewEpics] : prev;
+      });
     }
 
     setIsLoading(false);
@@ -182,16 +196,16 @@ export const useAppState = (): UseAppStateResult => {
 
   const setMaxDevelopers = useCallback((maxDevs: number) => {
     // Clear daily capacity overrides when max developers changes
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParamsRef.current.toString());
     params.set(QUERY_PARAM_KEYS.MAX_DEVS, maxDevs.toString());
     params.delete(QUERY_PARAM_KEYS.DAILY_CAPS);
     const newUrl = params.toString() ? `?${params.toString()}` : '/';
     router.push(newUrl, { scroll: false });
-  }, [searchParams, router]);
+  }, [router]);
 
   const setDailyCapacityOverride = useCallback((date: string, sprintId: number, capacity: number) => {
     // Update or add the override
-    const existingOverrides = parseDailyCapacityOverrides(searchParams.get(QUERY_PARAM_KEYS.DAILY_CAPS));
+    const existingOverrides = parseDailyCapacityOverrides(searchParamsRef.current.get(QUERY_PARAM_KEYS.DAILY_CAPS));
     const existingIndex = existingOverrides.findIndex((o) => o.date === date);
 
     let newOverrides: DailyCapacityOverride[];
@@ -205,7 +219,7 @@ export const useAppState = (): UseAppStateResult => {
     const overridesNotEqualToMaxDevelopers = newOverrides.filter((o) => o.capacity !== maxDevelopers);
 
     updateUrl(QUERY_PARAM_KEYS.DAILY_CAPS, serializeDailyCapacityOverrides(overridesNotEqualToMaxDevelopers));
-  }, [searchParams, updateUrl, maxDevelopers]);
+  }, [updateUrl, maxDevelopers]);
 
   const clearDailyCapacityOverrides = useCallback(() => {
     updateUrl(QUERY_PARAM_KEYS.DAILY_CAPS, null);
@@ -214,9 +228,11 @@ export const useAppState = (): UseAppStateResult => {
   // Load epics from URL when epicKeys change
   useEffect(() => {
     if (epicKeys.length > 0) {
-      loadEpicsByKeys(epicKeys);
+      startTransition(() => {
+        loadEpicsByKeys(epicKeys);
+      });
     }
-  }, [epicKeys.join(','), loadEpicsByKeys]);
+  }, [epicKeys, loadEpicsByKeys]);
 
   return {
     epicKeys,

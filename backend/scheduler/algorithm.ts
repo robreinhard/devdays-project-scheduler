@@ -256,17 +256,6 @@ const getEpicTicketsTopological = (epicKey: string, allTickets: JiraTicket[]): T
 };
 
 /**
- * Find the sprint that contains a given day index
- */
-const findSprintForDayIndex = (
-  dayIndex: number,
-  dailyCapacity: DayCapacity[]
-): { sprint: DayCapacity; globalIndex: number } | null => {
-  if (dayIndex >= dailyCapacity.length) return null;
-  return { sprint: dailyCapacity[dayIndex], globalIndex: dayIndex };
-};
-
-/**
  * Find the first day of the next sprint after the given day index
  */
 const findNextSprintStart = (

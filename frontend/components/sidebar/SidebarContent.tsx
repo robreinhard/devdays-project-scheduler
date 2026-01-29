@@ -137,7 +137,7 @@ const SidebarContent = ({ isGenerating = false }: SidebarContentProps) => {
           onChange={(e) => handlePointsPerDayChange(parseInt(e.target.value, 10))}
           disabled={!hasSprintsSelected}
           inputProps={{ min: 1 }}
-          helperText="Story points that can be completed per day"
+          helperText="Story points that can be completed per day. Roughly corresponds to number of developers on team."
         />
         {hasDailyOverrides && (
           <Alert severity="info" sx={{ mt: 1, py: 0, fontSize: 11 }}>

@@ -241,10 +241,6 @@ const DependencyLines = ({
     };
   }, [epics, expandedEpics, dayWidth, rowHeight]);
 
-  if (connections.length === 0) {
-    return null;
-  }
-
   // Calculate SVG width based on the rightmost ticket
   const svgWidth = useMemo(() => {
     let maxRight = 0;
@@ -255,6 +251,10 @@ const DependencyLines = ({
     }
     return maxRight + 50; // Add some padding
   }, [ticketPositions]);
+
+  if (connections.length === 0) {
+    return null;
+  }
 
   return (
     <Box

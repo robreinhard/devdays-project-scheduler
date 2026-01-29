@@ -91,34 +91,20 @@ export const useAppState = (): UseAppStateResult => {
   const [epics, setEpics] = useState<JiraEpic[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Track loaded epic keys to prevent duplicates
+  // Track loaded epic keys to prevent duplicates (only accessed in callbacks/effects)
   const loadedKeysRef = useRef<Set<string>>(new Set());
 
-  // Track pending epic keys (updates synchronously to handle rapid additions)
-  const pendingEpicKeysRef = useRef<string[]>([]);
-
-  // Parse state from URL
-  const epicKeysFromUrl = searchParams.get(QUERY_PARAM_KEYS.EPICS)?.split(',').filter(Boolean) ?? [];
+  // Parse state from URL - this is the source of truth
+  const epicKeys = searchParams.get(QUERY_PARAM_KEYS.EPICS)?.split(',').filter(Boolean) ?? [];
   const sprintCapacities = parseSprintCapacities(searchParams.get(QUERY_PARAM_KEYS.SPRINTS));
   const viewStartDate = searchParams.get(QUERY_PARAM_KEYS.START_DATE) ?? undefined;
   const viewEndDate = searchParams.get(QUERY_PARAM_KEYS.END_DATE) ?? undefined;
   const maxDevelopers = parseInt(searchParams.get(QUERY_PARAM_KEYS.MAX_DEVS) ?? '', 10) || DEFAULT_APP_STATE.maxDevelopers;
   const dailyCapacityOverrides = parseDailyCapacityOverrides(searchParams.get(QUERY_PARAM_KEYS.DAILY_CAPS));
 
-  // Sync pending ref with URL when URL updates
-  if (pendingEpicKeysRef.current.length === 0 ||
-      (epicKeysFromUrl.length > 0 && epicKeysFromUrl.join(',') !== pendingEpicKeysRef.current.join(','))) {
-    pendingEpicKeysRef.current = epicKeysFromUrl;
-  }
-
-  // Use pending keys as the source of truth
-  const epicKeys = pendingEpicKeysRef.current;
-
-  // Update URL with new params (using ref for current state)
-  const updateUrlRef = useRef<(key: string, value: string | null) => void>(() => {});
-  updateUrlRef.current = (key: string, value: string | null) => {
+  // Update URL helper
+  const updateUrl = useCallback((key: string, value: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
-    console.log(Object.fromEntries(searchParams.entries()));
     if (value) {
       params.set(key, value);
     } else {
@@ -126,40 +112,32 @@ export const useAppState = (): UseAppStateResult => {
     }
     const newUrl = params.toString() ? `?${params.toString()}` : '/';
     router.push(newUrl, { scroll: false });
-  };
-
-  const updateUrl = useCallback((key: string, value: string | null) => {
-    updateUrlRef.current?.(key, value);
-  }, []);
+  }, [searchParams, router]);
 
   // Actions
   const addEpic = useCallback((epic: JiraEpic) => {
-    // Check against pending keys (synchronous)
-    if (pendingEpicKeysRef.current.includes(epic.key)) return;
-
-    // Update pending keys synchronously
-    pendingEpicKeysRef.current = [...pendingEpicKeysRef.current, epic.key];
-
     // Add to local state
     setEpics((prev) => {
       if (prev.some((e) => e.key === epic.key)) return prev;
       return [...prev, epic];
     });
-    loadedKeysRef.current.add(epic.key);
 
-    // Update URL
-    updateUrl(QUERY_PARAM_KEYS.EPICS, pendingEpicKeysRef.current.join(','));
-  }, [updateUrl]);
+    // Update URL - read current epicKeys from searchParams
+    const currentKeys = searchParams.get(QUERY_PARAM_KEYS.EPICS)?.split(',').filter(Boolean) ?? [];
+    if (!currentKeys.includes(epic.key)) {
+      const newKeys = [...currentKeys, epic.key];
+      updateUrl(QUERY_PARAM_KEYS.EPICS, newKeys.join(','));
+    }
+  }, [searchParams, updateUrl]);
 
   const removeEpic = useCallback((epicKey: string) => {
     setEpics((prev) => prev.filter((e) => e.key !== epicKey));
-    loadedKeysRef.current.delete(epicKey);
 
-    // Update pending keys synchronously
-    pendingEpicKeysRef.current = pendingEpicKeysRef.current.filter((k) => k !== epicKey);
-
-    updateUrl(QUERY_PARAM_KEYS.EPICS, pendingEpicKeysRef.current.length > 0 ? pendingEpicKeysRef.current.join(',') : null);
-  }, [updateUrl]);
+    // Update URL - read current epicKeys from searchParams
+    const currentKeys = searchParams.get(QUERY_PARAM_KEYS.EPICS)?.split(',').filter(Boolean) ?? [];
+    const newKeys = currentKeys.filter((k) => k !== epicKey);
+    updateUrl(QUERY_PARAM_KEYS.EPICS, newKeys.length > 0 ? newKeys.join(',') : null);
+  }, [searchParams, updateUrl]);
 
   const loadEpicsByKeys = useCallback(async (keys: string[]) => {
     const keysToLoad = keys.filter((key) => !loadedKeysRef.current.has(key));
@@ -167,7 +145,6 @@ export const useAppState = (): UseAppStateResult => {
 
     setIsLoading(true);
     const newEpics: JiraEpic[] = [];
-    const loadedKeys: string[] = [];
 
     for (const key of keysToLoad) {
       try {
@@ -177,7 +154,6 @@ export const useAppState = (): UseAppStateResult => {
         if (data.epic) {
           newEpics.push(data.epic);
           loadedKeysRef.current.add(key);
-          loadedKeys.push(key);
         }
       } catch (error) {
         console.error(`Failed to load epic ${key}:`, error);
@@ -186,20 +162,10 @@ export const useAppState = (): UseAppStateResult => {
 
     if (newEpics.length > 0) {
       setEpics((prev) => [...prev, ...newEpics]);
-
-      // Update pending keys and URL with successfully loaded keys
-      const newPendingKeys = [...pendingEpicKeysRef.current];
-      for (const key of loadedKeys) {
-        if (!newPendingKeys.includes(key)) {
-          newPendingKeys.push(key);
-        }
-      }
-      pendingEpicKeysRef.current = newPendingKeys;
-      updateUrl(QUERY_PARAM_KEYS.EPICS, newPendingKeys.join(','));
     }
 
     setIsLoading(false);
-  }, [updateUrl]);
+  }, []);
 
   const setSprintCapacities = useCallback((capacities: SprintCapacity[]) => {
     const value = capacities.length > 0 ? serializeSprintCapacities(capacities) : null;

@@ -75,7 +75,7 @@ const HomeContent = () => {
 
     if (!canGenerate) {
       // Clear gantt data if prerequisites are no longer met
-      if (ganttData && epicKeys.length === 0) {
+      if (ganttData && (epicKeys.length === 0 || sprintCapacities.length === 0)) {
         clear();
       }
       return;

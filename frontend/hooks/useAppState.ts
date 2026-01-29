@@ -64,6 +64,7 @@ interface UseAppStateResult {
   // State
   projectKey?: string;
   boardId?: number;
+  sprintFilter?: string;
   epicKeys: string[];
   epics: JiraEpic[];
   sprintCapacities: SprintCapacity[];
@@ -76,6 +77,7 @@ interface UseAppStateResult {
   // Actions
   setProjectKey: (projectKey: string | undefined) => void;
   setBoardId: (boardId: number | undefined) => void;
+  setSprintFilter: (filter: string | undefined) => void;
   addEpic: (epic: JiraEpic) => void;
   removeEpic: (epicKey: string) => void;
   loadEpicsByKeys: (keys: string[]) => Promise<void>;
@@ -108,6 +110,7 @@ export const useAppState = (): UseAppStateResult => {
   const projectKey = searchParams.get(QUERY_PARAM_KEYS.PROJECT) ?? undefined;
   const boardIdParam = searchParams.get(QUERY_PARAM_KEYS.BOARD);
   const boardId = boardIdParam ? parseInt(boardIdParam, 10) : undefined;
+  const sprintFilter = searchParams.get(QUERY_PARAM_KEYS.SPRINT_FILTER) ?? undefined;
   const epicKeysParam = searchParams.get(QUERY_PARAM_KEYS.EPICS);
   const epicKeys = useMemo(
     () => epicKeysParam?.split(',').filter(Boolean) ?? [],
@@ -148,18 +151,23 @@ export const useAppState = (): UseAppStateResult => {
   }, [router]);
 
   const setBoardId = useCallback((newBoardId: number | undefined) => {
-    // Clear dependent state: sprints, dailyCapacities
+    // Clear dependent state: sprints, sprintFilter, dailyCapacities
     const params = new URLSearchParams(searchParamsRef.current.toString());
     if (newBoardId !== undefined) {
       params.set(QUERY_PARAM_KEYS.BOARD, newBoardId.toString());
     } else {
       params.delete(QUERY_PARAM_KEYS.BOARD);
     }
+    params.delete(QUERY_PARAM_KEYS.SPRINT_FILTER);
     params.delete(QUERY_PARAM_KEYS.SPRINTS);
     params.delete(QUERY_PARAM_KEYS.DAILY_CAPS);
     const newUrl = params.toString() ? `?${params.toString()}` : '/';
     router.push(newUrl, { scroll: false });
   }, [router]);
+
+  const setSprintFilter = useCallback((filter: string | undefined) => {
+    updateUrl(QUERY_PARAM_KEYS.SPRINT_FILTER, filter ?? null);
+  }, [updateUrl]);
 
   const addEpic = useCallback((epic: JiraEpic) => {
     // Add to local state
@@ -273,6 +281,7 @@ export const useAppState = (): UseAppStateResult => {
   return {
     projectKey,
     boardId,
+    sprintFilter,
     epicKeys,
     epics,
     sprintCapacities,
@@ -283,6 +292,7 @@ export const useAppState = (): UseAppStateResult => {
     isLoading,
     setProjectKey,
     setBoardId,
+    setSprintFilter,
     addEpic,
     removeEpic,
     loadEpicsByKeys,

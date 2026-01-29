@@ -7,11 +7,19 @@ export const GET = async (request: NextRequest) => {
   const state = searchParams.get('state') as 'active' | 'closed' | 'future' | null;
   const boardIdParam = searchParams.get('boardId');
   const boardId = boardIdParam ? parseInt(boardIdParam, 10) : undefined;
+  const filterQuery = searchParams.get('q')?.toLowerCase();
 
   try {
     const client = getJiraClient();
     const sprintsResponse = await client.getSprints(state ?? undefined, boardId);
-    const sprints = mapToSprints(sprintsResponse);
+    let sprints = mapToSprints(sprintsResponse);
+
+    // Filter by name if query provided
+    if (filterQuery) {
+      sprints = sprints.filter((sprint) =>
+        sprint.name.toLowerCase().includes(filterQuery)
+      );
+    }
 
     // Sort by start date (most recent first for active/future, oldest first for closed)
     sprints.sort((a, b) => {

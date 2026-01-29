@@ -196,6 +196,30 @@ export class JiraClient {
   };
 
   /**
+   * Get a single sprint by ID
+   */
+  getSprintById = async (sprintId: number): Promise<JiraSprintResponse> => {
+    return this.fetch<JiraSprintResponse>(`/rest/agile/1.0/sprint/${sprintId}`);
+  };
+
+  /**
+   * Get multiple sprints by their IDs
+   */
+  getSprintsByIds = async (sprintIds: number[]): Promise<JiraSprintResponse[]> => {
+    const results = await Promise.all(
+      sprintIds.map(async (id) => {
+        try {
+          return await this.getSprintById(id);
+        } catch (error) {
+          console.error(`Failed to fetch sprint ${id}:`, error);
+          return null;
+        }
+      })
+    );
+    return results.filter((s): s is JiraSprintResponse => s !== null);
+  };
+
+  /**
    * Validate connection to JIRA
    */
   validateConnection = async (): Promise<{ valid: boolean; email?: string; error?: string }> => {

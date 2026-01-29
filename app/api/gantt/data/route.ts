@@ -61,10 +61,9 @@ export const POST = async (request: NextRequest) => {
       }
     }
 
-    // Fetch sprints
-    const sprintsResponse = await client.getSprints();
-    const allSprints = mapToSprints(sprintsResponse);
-    const selectedSprints = allSprints.filter((s) => sprintIds.includes(s.id));
+    // Fetch sprints by ID directly
+    const sprintsResponse = await client.getSprintsByIds(sprintIds);
+    const selectedSprints = mapToSprints(sprintsResponse);
 
     if (selectedSprints.length === 0) {
       return NextResponse.json(

@@ -5,6 +5,9 @@ import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import Typography from '@mui/material/Typography';
+import Fab from '@mui/material/Fab';
+import Tooltip from '@mui/material/Tooltip';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { Header, Sidebar, MainContent, SidebarContent, GanttChart } from '@/frontend/components';
 import { useAppState, useGanttData } from '@/frontend/hooks';
 import type { DailyCapacity } from '@/shared/types';
@@ -30,7 +33,7 @@ const HomeContent = () => {
     autoAdjustStartDate,
     setDailyCapacityOverride,
   } = useAppState();
-  const { ganttData, isLoading, error, generate, clear } = useGanttData();
+  const { ganttData, isLoading, error, generate, clear, clearCache } = useGanttData();
 
   const handleSprintOverlapChange = useCallback((hasOverlap: boolean) => {
     setHasSprintOverlap(hasOverlap);
@@ -129,6 +132,16 @@ const HomeContent = () => {
     setDailyCapacityOverride(date, dayInfo.sprintId, capacity);
   }, [ganttData, setDailyCapacityOverride]);
 
+  // Handle refresh - clears cache and regenerates with fresh data from JIRA
+  const handleRefresh = useCallback(() => {
+    const canGenerate = epicKeys.length > 0 && sprintCapacities.length > 0 && maxDevelopers > 0 && !hasSprintOverlap;
+    if (!canGenerate || isLoading) return;
+
+    clearCache();
+    const capacitiesWithOverrides = buildCapacitiesWithOverrides();
+    generate(epicKeys, capacitiesWithOverrides, maxDevelopers, { sprintDateOverrides, autoAdjustStartDate });
+  }, [epicKeys, sprintCapacities, maxDevelopers, hasSprintOverlap, isLoading, clearCache, buildCapacitiesWithOverrides, generate, sprintDateOverrides, autoAdjustStartDate]);
+
   // Determine what message to show when no chart
   const getEmptyStateMessage = () => {
     if (sprintCapacities.length === 0) {
@@ -222,6 +235,25 @@ const HomeContent = () => {
           )}
         </MainContent>
       </Box>
+
+      {/* Refresh FAB */}
+      <Tooltip title="Refresh all data from JIRA">
+        <span>
+          <Fab
+            color="primary"
+            aria-label="refresh"
+            onClick={handleRefresh}
+            disabled={isLoading || epicKeys.length === 0 || sprintCapacities.length === 0}
+            sx={{
+              position: 'fixed',
+              bottom: 24,
+              right: 24,
+            }}
+          >
+            {isLoading ? <CircularProgress size={24} color="inherit" /> : <RefreshIcon />}
+          </Fab>
+        </span>
+      </Tooltip>
     </Box>
   );
 };

@@ -29,7 +29,6 @@ export const DEFAULT_APP_STATE: AppState = {
 export const QUERY_PARAM_KEYS = {
   PROJECT: 'project',
   BOARD: 'board',
-  SPRINT_FILTER: 'sf',
   EPICS: 'epics',
   SPRINTS: 'sprints',
   START_DATE: 'start',

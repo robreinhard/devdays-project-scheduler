@@ -74,7 +74,7 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartPr
     // Count work days between start and last sprint end
     let workDays = 0;
     let current = startDt;
-    while (current < lastSprintEnd) {
+    while (current <= lastSprintEnd) {
       if (!isWeekend(current)) workDays++;
       current = current.plus({ days: 1 });
     }

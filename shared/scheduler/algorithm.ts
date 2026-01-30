@@ -33,20 +33,14 @@ const getEndDateFromDayIndex = (endDay: number, dailyCapacity: DayCapacity[]): s
 
 /**
  * Get all work days in a sprint as an array of date strings.
- * If end date/time is at midnight (start of day), treat it as exclusive (last day is the day before).
- * Otherwise treat end date as inclusive.
+ * Jira's endDate is inclusive - iterate through all days from start to end.
  */
 const getSprintWorkDays = (sprint: JiraSprint): string[] => {
   const workDays: string[] = [];
   let current = parseDate(sprint.startDate);
-  let end = parseDate(sprint.endDate);
+  const end = parseDate(sprint.endDate);
 
-  // If end time is midnight (hour=0, minute=0), the sprint ends at the START of that day,
-  // meaning the last work day is the day before
-  if (end.hour === 0 && end.minute === 0) {
-    end = end.minus({ days: 1 });
-  }
-
+  // Jira's endDate is inclusive - iterate through all days from start to end
   while (current <= end) {
     if (!isWeekend(current)) {
       workDays.push(current.toISODate()!);

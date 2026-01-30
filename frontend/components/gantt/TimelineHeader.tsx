@@ -32,24 +32,30 @@ const TimelineHeader = ({
     // Helper to check if a date is in the past
     const isPastDay = (dateStr: string) => parseDate(dateStr) < parseDate(today);
 
-    // Calculate sprint positions (always excludes weekends)
+    // Calculate sprint positions from dailyCapacities to ensure alignment with day columns
     const sprintPositions = useMemo(() => {
         return sprints.map((sprint) => {
-            const sprintStart = parseDate(sprint.startDate);
-            const sprintEnd = parseDate(sprint.endDate);
-            const startDay = workDaysBetween(startDt, sprintStart);
-            const endDay = workDaysBetween(startDt, sprintEnd);
-            const width = (endDay - startDay) * dayWidth;
+            const sprintDays = dailyCapacities?.filter(d => d.sprintId === sprint.id) ?? [];
+
+            if (sprintDays.length === 0) {
+                const sprintStart = parseDate(sprint.startDate);
+                const startDay = workDaysBetween(startDt, sprintStart);
+                return { sprint, left: startDay * dayWidth, width: 0, startDay, endDay: startDay };
+            }
+
+            const firstDayIndex = sprintDays[0].dayIndex;
+            const lastDayIndex = sprintDays[sprintDays.length - 1].dayIndex;
+            const width = (lastDayIndex - firstDayIndex + 1) * dayWidth;
 
             return {
                 sprint,
-                left: startDay * dayWidth,
+                left: firstDayIndex * dayWidth,
                 width,
-                startDay,
-                endDay,
+                startDay: firstDayIndex,
+                endDay: lastDayIndex + 1,
             };
         });
-    }, [sprints, startDt, dayWidth]);
+    }, [sprints, dailyCapacities, startDt, dayWidth]);
 
     // Generate day markers from dailyCapacities to ensure indices align
     const dayMarkers = useMemo(() => {

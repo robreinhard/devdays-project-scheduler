@@ -4,8 +4,20 @@ import { DateTime } from 'luxon';
 export const TIMEZONE = process.env.NEXT_PUBLIC_TIMEZONE || 'America/Chicago';
 
 /** Parse ISO date string in configured timezone */
-export const parseDate = (dateStr: string): DateTime =>
-  DateTime.fromISO(dateStr, { zone: TIMEZONE });
+export const parseDate = (dateStr: string): DateTime => {
+  const parsed = DateTime.fromISO(dateStr, { zone: TIMEZONE });
+
+  if (dateStr.includes('T')) {
+    // Parse in UTC first to get the intended calendar date
+    const utcParsed = DateTime.fromISO(dateStr, { zone: 'UTC' });
+    return DateTime.fromObject(
+      { year: utcParsed.year, month: utcParsed.month, day: utcParsed.day },
+      { zone: TIMEZONE }
+    );
+  }
+
+  return parsed;
+};
 
 /** Check if a DateTime is a weekend (Sat=6, Sun=7 in Luxon) */
 export const isWeekend = (dt: DateTime): boolean => dt.weekday >= 6;

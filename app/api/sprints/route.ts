@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getJiraClient, mapToSprints } from '@/backend/jira';
 import { parseDate } from '@/shared/utils/dates';
 
+/**
+ * GET /api/sprints - Fetch sprints from JIRA
+ *
+ * Query params:
+ * - state: 'active' | 'closed' | 'future' (passed to JIRA API)
+ * - boardId: number (passed to JIRA API)
+ * - q: string (name filter - applied post-fetch, JIRA API doesn't support name search)
+ *
+ * Note: The JIRA Board Sprint API (/rest/agile/1.0/board/{boardId}/sprint) only supports
+ * filtering by `state`. Name filtering must be done post-fetch as JIRA doesn't support it.
+ */
 export const GET = async (request: NextRequest) => {
   const searchParams = request.nextUrl.searchParams;
   const state = searchParams.get('state') as 'active' | 'closed' | 'future' | null;
@@ -11,17 +22,18 @@ export const GET = async (request: NextRequest) => {
 
   try {
     const client = getJiraClient();
+    // State and boardId are passed to JIRA API
     const sprintsResponse = await client.getSprints(state ?? undefined, boardId);
     let sprints = mapToSprints(sprintsResponse);
 
-    // Filter by name if query provided
+    // Name filtering must be done post-fetch (JIRA Sprint API doesn't support name search)
     if (filterQuery) {
       sprints = sprints.filter((sprint) =>
         sprint.name.toLowerCase().includes(filterQuery)
       );
     }
 
-    // Sort by start date (most recent first for active/future, oldest first for closed)
+    // Sort by start date ascending
     sprints.sort((a, b) => {
       if (!a.startDate) return 1;
       if (!b.startDate) return -1;

@@ -149,18 +149,46 @@ export class JiraClient {
 
   /**
    * Get sprints from a board (uses provided boardId or falls back to configured board)
+   * Auto-paginates to fetch all sprints (JIRA limits to 50 per request).
+   *
+   * JIRA API supports only these filters:
+   * - state: active | closed | future (can be comma-separated for multiple)
+   *
+   * JIRA does NOT support: name search, date range filtering
+   * Those must be done post-fetch by the caller.
    */
   getSprints = async (state?: 'active' | 'closed' | 'future', boardId?: number): Promise<JiraSprintResponse[]> => {
-    const params = new URLSearchParams();
-    if (state) {
-      params.set('state', state);
+    const targetBoardId = boardId ?? this.config.boardId;
+    const allSprints: JiraSprintResponse[] = [];
+    let startAt = 0;
+    const maxResults = 50;
+
+    while (true) {
+      const params = new URLSearchParams();
+      if (state) {
+        params.set('state', state);
+      }
+      params.set('startAt', String(startAt));
+      params.set('maxResults', String(maxResults));
+
+      const endpoint = `/rest/agile/1.0/board/${targetBoardId}/sprint?${params}`;
+      const response = await this.fetch<{
+        values: JiraSprintResponse[];
+        isLast: boolean;
+        startAt: number;
+        maxResults: number;
+      }>(endpoint);
+
+      allSprints.push(...response.values);
+
+      if (response.isLast || response.values.length === 0) {
+        break;
+      }
+
+      startAt += response.values.length;
     }
 
-    const targetBoardId = boardId ?? this.config.boardId;
-    const endpoint = `/rest/agile/1.0/board/${targetBoardId}/sprint?${params}`;
-
-    const response = await this.fetch<{ values: JiraSprintResponse[] }>(endpoint);
-    return response.values;
+    return allSprints;
   };
 
   /**

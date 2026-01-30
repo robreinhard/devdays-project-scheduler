@@ -5,6 +5,8 @@ import type { SprintCapacity } from './scheduling';
  * This enables shareable URLs
  */
 export interface AppState {
+  projectKey?: string;             // Selected JIRA project key
+  boardId?: number;                // Selected JIRA board ID
   epicKeys: string[];              // Selected epic keys (e.g., ["PROJ-1", "PROJ-2"])
   sprintCapacities: SprintCapacity[]; // Selected sprints with their capacities
   viewStartDate?: string;          // Chart X-axis start date (ISO)
@@ -25,10 +27,23 @@ export const DEFAULT_APP_STATE: AppState = {
  * Query param keys
  */
 export const QUERY_PARAM_KEYS = {
+  PROJECT: 'project',
+  BOARD: 'board',
   EPICS: 'epics',
   SPRINTS: 'sprints',
   START_DATE: 'start',
   END_DATE: 'end',
   MAX_DEVS: 'maxDevs',
   DAILY_CAPS: 'dc',
+  SPRINT_DATES: 'sprintDates',
+  AUTO_ADJUST_START: 'autoAdjust',
 } as const;
+
+/**
+ * Sprint date override - allows manually overriding JIRA sprint dates
+ */
+export interface SprintDateOverride {
+  sprintId: number;
+  startDate: string;  // ISO date (YYYY-MM-DD)
+  endDate: string;    // ISO date (YYYY-MM-DD)
+}

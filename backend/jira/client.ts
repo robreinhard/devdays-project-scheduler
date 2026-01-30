@@ -2,6 +2,8 @@ import type {
   JiraSearchResponse,
   JiraSprintResponse,
   JiraIssueResponse,
+  JiraProjectResponse,
+  JiraBoardResponse,
 } from '@/shared/types';
 
 /**
@@ -146,18 +148,103 @@ export class JiraClient {
   };
 
   /**
-   * Get sprints from the configured board
+   * Get sprints from a board (uses provided boardId or falls back to configured board)
+   * Auto-paginates to fetch all sprints (JIRA limits to 50 per request).
+   *
+   * JIRA API supports only these filters:
+   * - state: active | closed | future (can be comma-separated for multiple)
+   *
+   * JIRA does NOT support: name search, date range filtering
+   * Those must be done post-fetch by the caller.
    */
-  getSprints = async (state?: 'active' | 'closed' | 'future'): Promise<JiraSprintResponse[]> => {
-    const params = new URLSearchParams();
-    if (state) {
-      params.set('state', state);
+  getSprints = async (state?: 'active' | 'closed' | 'future', boardId?: number): Promise<JiraSprintResponse[]> => {
+    const targetBoardId = boardId ?? this.config.boardId;
+    const allSprints: JiraSprintResponse[] = [];
+    let startAt = 0;
+    const maxResults = 50;
+
+    while (true) {
+      const params = new URLSearchParams();
+      if (state) {
+        params.set('state', state);
+      }
+      params.set('startAt', String(startAt));
+      params.set('maxResults', String(maxResults));
+
+      const endpoint = `/rest/agile/1.0/board/${targetBoardId}/sprint?${params}`;
+      const response = await this.fetch<{
+        values: JiraSprintResponse[];
+        isLast: boolean;
+        startAt: number;
+        maxResults: number;
+      }>(endpoint);
+
+      allSprints.push(...response.values);
+
+      if (response.isLast || response.values.length === 0) {
+        break;
+      }
+
+      startAt += response.values.length;
     }
 
-    const endpoint = `/rest/agile/1.0/board/${this.config.boardId}/sprint?${params}`;
+    return allSprints;
+  };
 
-    const response = await this.fetch<{ values: JiraSprintResponse[] }>(endpoint);
+  /**
+   * Get all accessible projects
+   */
+  getProjects = async (): Promise<JiraProjectResponse[]> => {
+    return this.fetch<JiraProjectResponse[]>('/rest/api/3/project');
+  };
+
+  /**
+   * Search projects by key or name
+   */
+  searchProjects = async (query: string): Promise<JiraProjectResponse[]> => {
+    const allProjects = await this.getProjects();
+    const lowerQuery = query.toLowerCase();
+    return allProjects.filter(
+      (p) =>
+        p.key.toLowerCase().includes(lowerQuery) ||
+        p.name.toLowerCase().includes(lowerQuery)
+    );
+  };
+
+  /**
+   * Get boards for a specific project
+   */
+  getBoardsForProject = async (projectKey: string): Promise<JiraBoardResponse[]> => {
+    const params = new URLSearchParams();
+    params.set('projectKeyOrId', projectKey);
+
+    const endpoint = `/rest/agile/1.0/board?${params}`;
+    const response = await this.fetch<{ values: JiraBoardResponse[] }>(endpoint);
     return response.values;
+  };
+
+  /**
+   * Get a single sprint by ID
+   */
+  getSprintById = async (sprintId: number): Promise<JiraSprintResponse> => {
+    return this.fetch<JiraSprintResponse>(`/rest/agile/1.0/sprint/${sprintId}`);
+  };
+
+  /**
+   * Get multiple sprints by their IDs
+   */
+  getSprintsByIds = async (sprintIds: number[]): Promise<JiraSprintResponse[]> => {
+    const results = await Promise.all(
+      sprintIds.map(async (id) => {
+        try {
+          return await this.getSprintById(id);
+        } catch (error) {
+          console.error(`Failed to fetch sprint ${id}:`, error);
+          return null;
+        }
+      })
+    );
+    return results.filter((s): s is JiraSprintResponse => s !== null);
   };
 
   /**

@@ -6,13 +6,12 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import Link from '@mui/material/Link';
 import type {ScheduledTicket} from '@/shared/types';
-import {parseDate, addWorkDays} from '@/shared/utils/dates';
+import {parseDate} from '@/shared/utils/dates';
 
 interface TicketBarProps {
     ticket: ScheduledTicket;
     dayWidth: number;
     rowHeight: number;
-    projectStartDate: string;
     epicColor: string;
 }
 
@@ -53,7 +52,7 @@ const getTicketColor = (ticket: ScheduledTicket, epicColor: string): string => {
     return darkenColor(epicColor, 10);
 };
 
-const TicketBar = ({ticket, dayWidth, rowHeight, projectStartDate, epicColor}: TicketBarProps) => {
+const TicketBar = ({ticket, dayWidth, rowHeight, epicColor}: TicketBarProps) => {
     const [tooltipOpen, setTooltipOpen] = useState(false);
 
     const left = ticket.startDay * dayWidth;
@@ -61,11 +60,9 @@ const TicketBar = ({ticket, dayWidth, rowHeight, projectStartDate, epicColor}: T
     // Get color based on ticket status (gold for missing estimate)
     const color = getTicketColor(ticket, epicColor);
 
-    // Calculate actual dates using Luxon
-    const startDt = parseDate(projectStartDate);
-    const ticketStartDt = addWorkDays(startDt, ticket.startDay)
-    const dayTicketShouldBeComplete = addWorkDays(startDt, ticket.endDay);
-    const ticketFinishOn = dayTicketShouldBeComplete.minus({ day: dayTicketShouldBeComplete.weekday === 1 ? 3 : 1 });
+    // Use actual dates from the scheduled ticket
+    const ticketStartDt = parseDate(ticket.startDate);
+    const ticketEndDt = parseDate(ticket.endDate);
 
     const formatDate = (dt: { toFormat: (fmt: string) => string }) => dt.toFormat('MMM d');
 
@@ -104,7 +101,7 @@ const TicketBar = ({ticket, dayWidth, rowHeight, projectStartDate, epicColor}: T
                 <Typography variant="caption" color="text.secondary">Start On:</Typography>
                 <Typography variant="caption">{formatDate(ticketStartDt)}</Typography>
                 <Typography variant="caption" color="text.secondary">Finish On:</Typography>
-                <Typography variant="caption">{formatDate(ticketFinishOn)}</Typography>
+                <Typography variant="caption">{formatDate(ticketEndDt)}</Typography>
 
                 {ticket.assignee && (
                     <>

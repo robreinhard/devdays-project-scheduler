@@ -4,3 +4,5 @@ export { default as SelectedEpics } from './SelectedEpics';
 export { default as SprintCapacityEditor } from './SprintCapacityEditor';
 export { default as DateRangePicker } from './DateRangePicker';
 export { default as SidebarContent } from './SidebarContent';
+export { default as ProjectSearch } from './ProjectSearch';
+export { default as BoardSelector } from './BoardSelector';

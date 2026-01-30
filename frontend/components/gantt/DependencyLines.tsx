@@ -265,7 +265,7 @@ const DependencyLines = ({
         width: svgWidth,
         height: svgHeight,
         pointerEvents: 'none',
-        zIndex: 10,
+        zIndex: 1,
       }}
     >
       <svg

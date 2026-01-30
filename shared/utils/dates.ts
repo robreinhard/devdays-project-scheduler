@@ -4,8 +4,22 @@ import { DateTime } from 'luxon';
 export const TIMEZONE = process.env.NEXT_PUBLIC_TIMEZONE || 'America/Chicago';
 
 /** Parse ISO date string in configured timezone */
-export const parseDate = (dateStr: string): DateTime =>
-  DateTime.fromISO(dateStr, { zone: TIMEZONE });
+export const parseDate = (dateStr: string): DateTime => {
+  if (dateStr.includes('T')) {
+    // Parse the ISO string (respects any timezone offset in the string),
+    // then convert to local timezone to get the correct local calendar date
+    const parsed = DateTime.fromISO(dateStr);
+    const localDateTime = parsed.setZone(TIMEZONE);
+    // Return just the date portion in local timezone
+    return DateTime.fromObject(
+      { year: localDateTime.year, month: localDateTime.month, day: localDateTime.day },
+      { zone: TIMEZONE }
+    );
+  }
+
+  // For date-only strings (no time component), parse directly in local timezone
+  return DateTime.fromISO(dateStr, { zone: TIMEZONE });
+};
 
 /** Check if a DateTime is a weekend (Sat=6, Sun=7 in Luxon) */
 export const isWeekend = (dt: DateTime): boolean => dt.weekday >= 6;

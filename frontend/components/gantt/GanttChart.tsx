@@ -5,7 +5,7 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import { DateTime } from 'luxon';
-import type { GanttData } from '@/shared/types';
+import type { GanttData, SprintDateOverride } from '@/shared/types';
 import { parseDate, isWeekend, TIMEZONE } from '@/shared/utils/dates';
 import TimelineHeader from './TimelineHeader';
 import EpicRow from './EpicRow';
@@ -29,6 +29,7 @@ interface GanttChartProps {
   data: GanttData;
   maxDevelopers: number;
   onDailyCapacityChange?: (dayIndex: number, date: string, capacity: number) => void;
+  sprintDateOverrides?: SprintDateOverride[];
 }
 
 // Width per day in pixels
@@ -38,7 +39,7 @@ const ROW_HEIGHT = 40;
 // Width of the left labels column
 const LABEL_WIDTH = 280;
 
-const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartProps) => {
+const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange, sprintDateOverrides = [] }: GanttChartProps) => {
   const { epics, sprints, dailyCapacities, projectStartDate, totalDays } = data;
 
   // Calculate today's date in the configured timezone
@@ -74,7 +75,7 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartPr
     // Count work days between start and last sprint end
     let workDays = 0;
     let current = startDt;
-    while (current < lastSprintEnd) {
+    while (current <= lastSprintEnd) {
       if (!isWeekend(current)) workDays++;
       current = current.plus({ days: 1 });
     }
@@ -160,6 +161,7 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange }: GanttChartPr
               maxDevelopers={maxDevelopers}
               onDailyCapacityChange={onDailyCapacityChange}
               today={today}
+              sprintDateOverrides={sprintDateOverrides}
             />
 
             {/* Epic rows with ticket bars */}

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, startTransition, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { JiraEpic, SprintCapacity } from '@/shared/types';
+import type { JiraEpic, SprintCapacity, SprintDateOverride } from '@/shared/types';
 import { DEFAULT_APP_STATE, QUERY_PARAM_KEYS } from '@/shared/types';
 
 /**
@@ -60,8 +60,34 @@ const serializeDailyCapacityOverrides = (overrides: DailyCapacityOverride[]): st
   return overrides.map((dc) => `${dc.date}:${dc.sprintId}:${dc.capacity}`).join(',');
 };
 
+/**
+ * Parse sprint date overrides from URL format: "1:2025-01-28:2025-02-10,2:2025-02-11:2025-02-24"
+ * Format is sprintId:startDate:endDate
+ */
+const parseSprintDateOverrides = (value: string | null): SprintDateOverride[] => {
+  if (!value) return [];
+
+  return value.split(',').map((entry) => {
+    const [sprintId, startDate, endDate] = entry.split(':');
+    return {
+      sprintId: parseInt(sprintId, 10),
+      startDate,
+      endDate,
+    };
+  }).filter((sdo) => !isNaN(sdo.sprintId) && sdo.startDate && sdo.endDate);
+};
+
+/**
+ * Serialize sprint date overrides to URL format
+ */
+const serializeSprintDateOverrides = (overrides: SprintDateOverride[]): string => {
+  return overrides.map((sdo) => `${sdo.sprintId}:${sdo.startDate}:${sdo.endDate}`).join(',');
+};
+
 interface UseAppStateResult {
   // State
+  projectKey?: string;
+  boardId?: number;
   epicKeys: string[];
   epics: JiraEpic[];
   sprintCapacities: SprintCapacity[];
@@ -69,9 +95,13 @@ interface UseAppStateResult {
   viewEndDate?: string;
   maxDevelopers: number;
   dailyCapacityOverrides: DailyCapacityOverride[];
+  sprintDateOverrides: SprintDateOverride[];
+  autoAdjustStartDate: boolean;
   isLoading: boolean;
 
   // Actions
+  setProjectKey: (projectKey: string | undefined) => void;
+  setBoardId: (boardId: number | undefined) => void;
   addEpic: (epic: JiraEpic) => void;
   removeEpic: (epicKey: string) => void;
   loadEpicsByKeys: (keys: string[]) => Promise<void>;
@@ -81,6 +111,9 @@ interface UseAppStateResult {
   setMaxDevelopers: (maxDevs: number) => void;
   setDailyCapacityOverride: (date: string, sprintId: number, capacity: number) => void;
   clearDailyCapacityOverrides: () => void;
+  setSprintDateOverride: (sprintId: number, startDate: string, endDate: string) => void;
+  clearSprintDateOverride: (sprintId: number) => void;
+  setAutoAdjustStartDate: (enabled: boolean) => void;
 }
 
 export const useAppState = (): UseAppStateResult => {
@@ -101,6 +134,9 @@ export const useAppState = (): UseAppStateResult => {
   });
 
   // Parse state from URL - this is the source of truth
+  const projectKey = searchParams.get(QUERY_PARAM_KEYS.PROJECT) ?? undefined;
+  const boardIdParam = searchParams.get(QUERY_PARAM_KEYS.BOARD);
+  const boardId = boardIdParam ? parseInt(boardIdParam, 10) : undefined;
   const epicKeysParam = searchParams.get(QUERY_PARAM_KEYS.EPICS);
   const epicKeys = useMemo(
     () => epicKeysParam?.split(',').filter(Boolean) ?? [],
@@ -111,6 +147,10 @@ export const useAppState = (): UseAppStateResult => {
   const viewEndDate = searchParams.get(QUERY_PARAM_KEYS.END_DATE) ?? undefined;
   const maxDevelopers = parseInt(searchParams.get(QUERY_PARAM_KEYS.MAX_DEVS) ?? '', 10) || DEFAULT_APP_STATE.maxDevelopers;
   const dailyCapacityOverrides = parseDailyCapacityOverrides(searchParams.get(QUERY_PARAM_KEYS.DAILY_CAPS));
+  const sprintDateOverrides = parseSprintDateOverrides(searchParams.get(QUERY_PARAM_KEYS.SPRINT_DATES));
+  // Default to true (on) - only false if explicitly set to '0' or 'false'
+  const autoAdjustParam = searchParams.get(QUERY_PARAM_KEYS.AUTO_ADJUST_START);
+  const autoAdjustStartDate = autoAdjustParam !== '0' && autoAdjustParam !== 'false';
 
   // Update URL helper
   const updateUrl = useCallback((key: string, value: string | null) => {
@@ -125,6 +165,37 @@ export const useAppState = (): UseAppStateResult => {
   }, [router]);
 
   // Actions
+  const setProjectKey = useCallback((newProjectKey: string | undefined) => {
+    // Clear dependent state: boardId, sprints, dailyCapacities, sprintDateOverrides
+    const params = new URLSearchParams(searchParamsRef.current.toString());
+    if (newProjectKey) {
+      params.set(QUERY_PARAM_KEYS.PROJECT, newProjectKey);
+    } else {
+      params.delete(QUERY_PARAM_KEYS.PROJECT);
+    }
+    params.delete(QUERY_PARAM_KEYS.BOARD);
+    params.delete(QUERY_PARAM_KEYS.SPRINTS);
+    params.delete(QUERY_PARAM_KEYS.DAILY_CAPS);
+    params.delete(QUERY_PARAM_KEYS.SPRINT_DATES);
+    const newUrl = params.toString() ? `?${params.toString()}` : '/';
+    router.push(newUrl, { scroll: false });
+  }, [router]);
+
+  const setBoardId = useCallback((newBoardId: number | undefined) => {
+    // Clear dependent state: sprints, dailyCapacities, sprintDateOverrides
+    const params = new URLSearchParams(searchParamsRef.current.toString());
+    if (newBoardId !== undefined) {
+      params.set(QUERY_PARAM_KEYS.BOARD, newBoardId.toString());
+    } else {
+      params.delete(QUERY_PARAM_KEYS.BOARD);
+    }
+    params.delete(QUERY_PARAM_KEYS.SPRINTS);
+    params.delete(QUERY_PARAM_KEYS.DAILY_CAPS);
+    params.delete(QUERY_PARAM_KEYS.SPRINT_DATES);
+    const newUrl = params.toString() ? `?${params.toString()}` : '/';
+    router.push(newUrl, { scroll: false });
+  }, [router]);
+
   const addEpic = useCallback((epic: JiraEpic) => {
     // Add to local state
     setEpics((prev) => {
@@ -182,9 +253,30 @@ export const useAppState = (): UseAppStateResult => {
   }, []);
 
   const setSprintCapacities = useCallback((capacities: SprintCapacity[]) => {
+    // When sprints change, clean up orphaned sprint date overrides
+    const params = new URLSearchParams(searchParamsRef.current.toString());
     const value = capacities.length > 0 ? serializeSprintCapacities(capacities) : null;
-    updateUrl(QUERY_PARAM_KEYS.SPRINTS, value);
-  }, [updateUrl]);
+
+    if (value) {
+      params.set(QUERY_PARAM_KEYS.SPRINTS, value);
+    } else {
+      params.delete(QUERY_PARAM_KEYS.SPRINTS);
+    }
+
+    // Filter sprint date overrides to only keep those for selected sprints
+    const selectedSprintIds = new Set(capacities.map((c) => c.sprintId));
+    const existingDateOverrides = parseSprintDateOverrides(params.get(QUERY_PARAM_KEYS.SPRINT_DATES));
+    const validDateOverrides = existingDateOverrides.filter((o) => selectedSprintIds.has(o.sprintId));
+
+    if (validDateOverrides.length > 0) {
+      params.set(QUERY_PARAM_KEYS.SPRINT_DATES, serializeSprintDateOverrides(validDateOverrides));
+    } else {
+      params.delete(QUERY_PARAM_KEYS.SPRINT_DATES);
+    }
+
+    const newUrl = params.toString() ? `?${params.toString()}` : '/';
+    router.push(newUrl, { scroll: false });
+  }, [router]);
 
   const setViewStartDate = useCallback((date: string | undefined) => {
     updateUrl(QUERY_PARAM_KEYS.START_DATE, date ?? null);
@@ -225,6 +317,39 @@ export const useAppState = (): UseAppStateResult => {
     updateUrl(QUERY_PARAM_KEYS.DAILY_CAPS, null);
   }, [updateUrl]);
 
+  const setSprintDateOverride = useCallback((sprintId: number, startDate: string, endDate: string) => {
+    const existingOverrides = parseSprintDateOverrides(searchParamsRef.current.get(QUERY_PARAM_KEYS.SPRINT_DATES));
+    const existingIndex = existingOverrides.findIndex((o) => o.sprintId === sprintId);
+
+    let newOverrides: SprintDateOverride[];
+    if (existingIndex >= 0) {
+      newOverrides = [...existingOverrides];
+      newOverrides[existingIndex] = { sprintId, startDate, endDate };
+    } else {
+      newOverrides = [...existingOverrides, { sprintId, startDate, endDate }];
+    }
+
+    updateUrl(
+      QUERY_PARAM_KEYS.SPRINT_DATES,
+      newOverrides.length > 0 ? serializeSprintDateOverrides(newOverrides) : null
+    );
+  }, [updateUrl]);
+
+  const clearSprintDateOverride = useCallback((sprintId: number) => {
+    const existingOverrides = parseSprintDateOverrides(searchParamsRef.current.get(QUERY_PARAM_KEYS.SPRINT_DATES));
+    const newOverrides = existingOverrides.filter((o) => o.sprintId !== sprintId);
+
+    updateUrl(
+      QUERY_PARAM_KEYS.SPRINT_DATES,
+      newOverrides.length > 0 ? serializeSprintDateOverrides(newOverrides) : null
+    );
+  }, [updateUrl]);
+
+  const setAutoAdjustStartDate = useCallback((enabled: boolean) => {
+    // Only store in URL if disabled (since default is enabled)
+    updateUrl(QUERY_PARAM_KEYS.AUTO_ADJUST_START, enabled ? null : '0');
+  }, [updateUrl]);
+
   // Load epics from URL when epicKeys change
   useEffect(() => {
     if (epicKeys.length > 0) {
@@ -235,6 +360,8 @@ export const useAppState = (): UseAppStateResult => {
   }, [epicKeys, loadEpicsByKeys]);
 
   return {
+    projectKey,
+    boardId,
     epicKeys,
     epics,
     sprintCapacities,
@@ -242,7 +369,11 @@ export const useAppState = (): UseAppStateResult => {
     viewEndDate,
     maxDevelopers,
     dailyCapacityOverrides,
+    sprintDateOverrides,
+    autoAdjustStartDate,
     isLoading,
+    setProjectKey,
+    setBoardId,
     addEpic,
     removeEpic,
     loadEpicsByKeys,
@@ -252,5 +383,8 @@ export const useAppState = (): UseAppStateResult => {
     setMaxDevelopers,
     setDailyCapacityOverride,
     clearDailyCapacityOverrides,
+    setSprintDateOverride,
+    clearSprintDateOverride,
+    setAutoAdjustStartDate,
   };
 };

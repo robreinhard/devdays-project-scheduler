@@ -5,18 +5,20 @@ export const TIMEZONE = process.env.NEXT_PUBLIC_TIMEZONE || 'America/Chicago';
 
 /** Parse ISO date string in configured timezone */
 export const parseDate = (dateStr: string): DateTime => {
-  const parsed = DateTime.fromISO(dateStr, { zone: TIMEZONE });
-
   if (dateStr.includes('T')) {
-    // Parse in UTC first to get the intended calendar date
-    const utcParsed = DateTime.fromISO(dateStr, { zone: 'UTC' });
+    // Parse the ISO string (respects any timezone offset in the string),
+    // then convert to local timezone to get the correct local calendar date
+    const parsed = DateTime.fromISO(dateStr);
+    const localDateTime = parsed.setZone(TIMEZONE);
+    // Return just the date portion in local timezone
     return DateTime.fromObject(
-      { year: utcParsed.year, month: utcParsed.month, day: utcParsed.day },
+      { year: localDateTime.year, month: localDateTime.month, day: localDateTime.day },
       { zone: TIMEZONE }
     );
   }
 
-  return parsed;
+  // For date-only strings (no time component), parse directly in local timezone
+  return DateTime.fromISO(dateStr, { zone: TIMEZONE });
 };
 
 /** Check if a DateTime is a weekend (Sat=6, Sun=7 in Luxon) */

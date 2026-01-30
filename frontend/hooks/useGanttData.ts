@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import type { GanttData, SprintCapacity, JiraEpic, JiraTicket, JiraSprint } from '@/shared/types';
+import type { GanttData, SprintCapacity, JiraEpic, JiraTicket, JiraSprint, SprintDateOverride } from '@/shared/types';
 import { scheduleTickets } from '@/shared/scheduler';
+import { applySprintDateOverrides, autoAdjustSprintDates } from '@/shared/utils/sprints';
 
 interface CachedData {
   epics: JiraEpic[];
@@ -12,11 +13,16 @@ interface CachedData {
   sprintIds: number[];
 }
 
+interface GenerateOptions {
+  sprintDateOverrides?: SprintDateOverride[];
+  autoAdjustStartDate?: boolean;
+}
+
 interface UseGanttDataResult {
   ganttData: GanttData | null;
   isLoading: boolean;
   error: string | null;
-  generate: (epicKeys: string[], sprintCapacities: SprintCapacity[], maxDevelopers: number) => Promise<void>;
+  generate: (epicKeys: string[], sprintCapacities: SprintCapacity[], maxDevelopers: number, options?: GenerateOptions) => Promise<void>;
   clear: () => void;
 }
 
@@ -31,8 +37,10 @@ export const useGanttData = (): UseGanttDataResult => {
   const generate = useCallback(async (
     epicKeys: string[],
     sprintCapacities: SprintCapacity[],
-    maxDevelopers: number
+    maxDevelopers: number,
+    options: GenerateOptions = {}
   ) => {
+    const { sprintDateOverrides = [], autoAdjustStartDate = true } = options;
     setIsLoading(true);
     setError(null);
 
@@ -76,11 +84,16 @@ export const useGanttData = (): UseGanttDataResult => {
         sprints = cached.sprints;
       }
 
+      // Apply auto-adjust and sprint date overrides before scheduling
+      // Auto-adjust is applied first, then manual overrides take precedence
+      let effectiveSprints = autoAdjustStartDate ? autoAdjustSprintDates(sprints) : sprints;
+      effectiveSprints = applySprintDateOverrides(effectiveSprints, sprintDateOverrides);
+
       // Run scheduling algorithm client-side
       const result = scheduleTickets({
         epics,
         tickets,
-        sprints,
+        sprints: effectiveSprints,
         sprintCapacities,
         maxDevelopers,
       });

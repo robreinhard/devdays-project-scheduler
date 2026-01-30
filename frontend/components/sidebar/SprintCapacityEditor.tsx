@@ -9,7 +9,17 @@ import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import TextField from '@mui/material/TextField';
-import type { JiraSprint, SprintCapacity } from '@/shared/types';
+import Button from '@mui/material/Button';
+import Collapse from '@mui/material/Collapse';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Switch from '@mui/material/Switch';
+import Tooltip from '@mui/material/Tooltip';
+import EditIcon from '@mui/icons-material/Edit';
+import RestoreIcon from '@mui/icons-material/Restore';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import type { JiraSprint, SprintCapacity, SprintDateOverride } from '@/shared/types';
+import { applySprintDateOverrides, getSprintDateOverride, autoAdjustSprintDates } from '@/shared/utils/sprints';
+import { parseDate } from '@/shared/utils/dates';
 
 interface SprintOverlap {
   sprint1: JiraSprint;
@@ -18,6 +28,9 @@ interface SprintOverlap {
 
 /**
  * Detect overlapping sprints from selected sprints.
+ * Uses parseDate to convert UTC dates to NEXT_PUBLIC_TIMEZONE.
+ * Overlaps are detected at the date level (not time) - if one sprint ends on
+ * the same day another starts, both "own" that day, so it's a conflict.
  */
 function detectSprintOverlaps(
   sprints: JiraSprint[],
@@ -26,7 +39,7 @@ function detectSprintOverlaps(
   const selectedSprints = sprints
     .filter((s) => selectedSprintIds.includes(s.id))
     .filter((s) => s.startDate && s.endDate)
-    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+    .sort((a, b) => parseDate(a.startDate).toMillis() - parseDate(b.startDate).toMillis());
 
   const overlaps: SprintOverlap[] = [];
 
@@ -35,14 +48,17 @@ function detectSprintOverlaps(
       const sprint1 = selectedSprints[i];
       const sprint2 = selectedSprints[j];
 
-      const start1 = new Date(sprint1.startDate).getTime();
-      const end1 = new Date(sprint1.endDate).getTime();
-      const start2 = new Date(sprint2.startDate).getTime();
-      const end2 = new Date(sprint2.endDate).getTime();
+      // Parse to dates in configured timezone (strips time component)
+      const start1 = parseDate(sprint1.startDate).toMillis();
+      const end1 = parseDate(sprint1.endDate).toMillis();
+      const start2 = parseDate(sprint2.startDate).toMillis();
+      const end2 = parseDate(sprint2.endDate).toMillis();
 
-      const overlaps12 = start1 < end2 && start2 < end1 && end1 !== start2;
+      // Date-based overlap: if sprint1 ends on or after sprint2 starts (and vice versa)
+      // Example: Sprint1 ends Feb 4, Sprint2 starts Feb 4 = overlap (both own Feb 4)
+      const hasOverlap = start1 <= end2 && start2 <= end1;
 
-      if (overlaps12) {
+      if (hasOverlap) {
         overlaps.push({ sprint1, sprint2 });
       }
     }
@@ -57,9 +73,150 @@ interface SprintCapacityEditorProps {
   onOverlapError?: (hasOverlap: boolean) => void;
   defaultCapacity?: number;
   boardId?: number;
+  sprintDateOverrides?: SprintDateOverride[];
+  onSprintDateOverride?: (sprintId: number, startDate: string, endDate: string) => void;
+  onClearSprintDateOverride?: (sprintId: number) => void;
+  autoAdjustDates?: boolean;
+  onAutoAdjustDatesChange?: (enabled: boolean) => void;
 }
 
 const DEBOUNCE_DELAY = 300;
+
+interface SprintChipWithDateEditProps {
+  sprint: JiraSprint;
+  originalSprint: JiraSprint;
+  isOverridden: boolean;
+  onRemove: () => void;
+  onSaveDates: (startDate: string, endDate: string) => void;
+  onResetDates: () => void;
+}
+
+/** Convert a date string to YYYY-MM-DD format in the configured timezone */
+const toDateInputValue = (dateStr: string): string => {
+  return parseDate(dateStr).toFormat('yyyy-MM-dd');
+};
+
+/** Format a date string for display (e.g., "Jan 28") in the configured timezone */
+const formatDateDisplay = (dateStr: string): string => {
+  return parseDate(dateStr).toFormat('MMM d');
+};
+
+const SprintChipWithDateEdit = ({
+  sprint,
+  originalSprint,
+  isOverridden,
+  onRemove,
+  onSaveDates,
+  onResetDates,
+}: SprintChipWithDateEditProps) => {
+  const [expanded, setExpanded] = useState(false);
+  // Use sprint dates as initial value, converted to the configured timezone
+  const sprintStartDate = toDateInputValue(sprint.startDate);
+  const sprintEndDate = toDateInputValue(sprint.endDate);
+  const [startDate, setStartDate] = useState(sprintStartDate);
+  const [endDate, setEndDate] = useState(sprintEndDate);
+
+  // Reset form values when collapsing or when sprint data changes externally
+  const handleToggleExpanded = () => {
+    if (expanded) {
+      // Reset to current sprint values when collapsing
+      setStartDate(sprintStartDate);
+      setEndDate(sprintEndDate);
+    }
+    setExpanded(!expanded);
+  };
+
+  const handleSave = () => {
+    onSaveDates(startDate, endDate);
+    setExpanded(false);
+  };
+
+  const handleReset = () => {
+    onResetDates();
+    const originalStart = toDateInputValue(originalSprint.startDate);
+    const originalEnd = toDateInputValue(originalSprint.endDate);
+    setStartDate(originalStart);
+    setEndDate(originalEnd);
+    setExpanded(false);
+  };
+
+  const chipLabel = (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      <span>{sprint.name}</span>
+      <Typography
+        component="span"
+        variant="caption"
+        sx={{ opacity: 0.8, fontSize: '10px' }}
+      >
+        ({formatDateDisplay(sprint.startDate)} - {formatDateDisplay(sprint.endDate)})
+      </Typography>
+    </Box>
+  );
+
+  return (
+    <Box sx={{ width: '100%' }}>
+      <Chip
+        label={chipLabel}
+        size="small"
+        onClick={handleToggleExpanded}
+        onDelete={onRemove}
+        icon={isOverridden ? <EditIcon sx={{ fontSize: 14 }} /> : undefined}
+        sx={{
+          maxWidth: '100%',
+          '& .MuiChip-label': { display: 'flex', alignItems: 'center' },
+          bgcolor: isOverridden ? 'warning.light' : undefined,
+          '&:hover': { bgcolor: isOverridden ? 'warning.main' : undefined },
+        }}
+      />
+      <Collapse in={expanded}>
+        <Paper variant="outlined" sx={{ p: 1.5, mt: 0.5, bgcolor: 'grey.50' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+            Edit sprint dates (JIRA: {formatDateDisplay(originalSprint.startDate)} - {formatDateDisplay(originalSprint.endDate)})
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+            <TextField
+              label="Start"
+              type="date"
+              size="small"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              slotProps={{
+                inputLabel: { shrink: true },
+              }}
+              sx={{ flex: 1 }}
+            />
+            <TextField
+              label="End"
+              type="date"
+              size="small"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              slotProps={{
+                inputLabel: { shrink: true },
+              }}
+              sx={{ flex: 1 }}
+            />
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+            {isOverridden && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<RestoreIcon />}
+                onClick={handleReset}
+              >
+                Reset
+              </Button>
+            )}
+            <Button size="small" variant="contained" onClick={handleSave}>
+              Save
+            </Button>
+          </Box>
+        </Paper>
+      </Collapse>
+    </Box>
+  );
+};
 
 const SprintCapacityEditor = ({
   sprintCapacities,
@@ -67,6 +224,11 @@ const SprintCapacityEditor = ({
   onOverlapError,
   defaultCapacity = 20,
   boardId,
+  sprintDateOverrides = [],
+  onSprintDateOverride,
+  onClearSprintDateOverride,
+  autoAdjustDates = true,
+  onAutoAdjustDatesChange,
 }: SprintCapacityEditorProps) => {
   const [options, setOptions] = useState<JiraSprint[]>([]);
   const [selectedSprintsCache, setSelectedSprintsCache] = useState<Map<number, JiraSprint>>(new Map());
@@ -218,8 +380,8 @@ const SprintCapacityEditor = ({
     setOpen(false);
   }, []);
 
-  // Get selected sprints from cache
-  const selectedSprints = useMemo(() => {
+  // Get selected sprints from cache (original JIRA data)
+  const selectedSprintsOriginal = useMemo(() => {
     return selectedSprintIds
       .map((id) => selectedSprintsCache.get(id))
       .filter((sprint): sprint is JiraSprint => sprint !== undefined)
@@ -230,7 +392,17 @@ const SprintCapacityEditor = ({
       });
   }, [selectedSprintIds, selectedSprintsCache]);
 
-  // Use cached sprints for overlap detection
+  // Apply auto-adjust and date overrides to get effective sprint dates
+  // Order: original -> auto-adjust (if enabled) -> manual overrides (take precedence)
+  const selectedSprints = useMemo(() => {
+    let sprints = selectedSprintsOriginal;
+    if (autoAdjustDates) {
+      sprints = autoAdjustSprintDates(sprints);
+    }
+    return applySprintDateOverrides(sprints, sprintDateOverrides);
+  }, [selectedSprintsOriginal, sprintDateOverrides, autoAdjustDates]);
+
+  // Use effective sprints (with overrides) for overlap detection
   const overlaps = useMemo(
     () => detectSprintOverlaps(selectedSprints, selectedSprintIds),
     [selectedSprints, selectedSprintIds]
@@ -329,6 +501,31 @@ const SprintCapacityEditor = ({
         sx={{ mb: 1 }}
       />
 
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              size="small"
+              checked={autoAdjustDates}
+              onChange={(e) => onAutoAdjustDatesChange?.(e.target.checked)}
+            />
+          }
+          label={
+            <Typography variant="caption" color="text.secondary">
+              Auto-adjust sprint dates
+            </Typography>
+          }
+          sx={{ mr: 0.5 }}
+        />
+        <Tooltip
+          title="When enabled: sprints starting after 5PM are moved to begin the next day, and sprints ending before 8AM are moved to end previous workday."
+          arrow
+          placement="top"
+        >
+          <InfoOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary', cursor: 'help' }} />
+        </Tooltip>
+      </Box>
+
       {overlaps.length > 0 && (
         <Alert severity="error" sx={{ mb: 1 }}>
           Sprint overlap detected: {overlaps.map((o) =>
@@ -340,17 +537,30 @@ const SprintCapacityEditor = ({
       {selectedSprints.length > 0 && (
         <Paper variant="outlined" sx={{ p: 1 }}>
           <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-            Selected sprints ({selectedSprints.length})
+            Selected sprints ({selectedSprints.length}) - click to edit dates
           </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {selectedSprints.map((sprint) => (
-              <Chip
-                key={sprint.id}
-                label={sprint.name}
-                size="small"
-                onDelete={() => handleRemove(sprint.id)}
-              />
-            ))}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            {selectedSprints.map((sprint, index) => {
+              const originalSprint = selectedSprintsOriginal[index];
+              const override = getSprintDateOverride(sprint.id, sprintDateOverrides);
+              const isOverridden = !!override;
+
+              return (
+                <SprintChipWithDateEdit
+                  key={sprint.id}
+                  sprint={sprint}
+                  originalSprint={originalSprint}
+                  isOverridden={isOverridden}
+                  onRemove={() => handleRemove(sprint.id)}
+                  onSaveDates={(startDate, endDate) => {
+                    onSprintDateOverride?.(sprint.id, startDate, endDate);
+                  }}
+                  onResetDates={() => {
+                    onClearSprintDateOverride?.(sprint.id);
+                  }}
+                />
+              );
+            })}
           </Box>
         </Paper>
       )}

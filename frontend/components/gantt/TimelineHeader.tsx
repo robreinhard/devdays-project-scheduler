@@ -5,8 +5,12 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
-import type {SprintWithCapacity, DayCapacityInfo} from '@/shared/types';
+import WarningIcon from '@mui/icons-material/Warning';
+import type {SprintWithCapacity, DayCapacityInfo, SprintDateOverride} from '@/shared/types';
 import {parseDate, workDaysBetween} from '@/shared/utils/dates';
+import {getSprintDateOverride} from '@/shared/utils/sprints';
+
+const EXPECTED_SPRINT_WORKDAYS = 10;
 
 interface TimelineHeaderProps {
     sprints: SprintWithCapacity[];
@@ -16,6 +20,7 @@ interface TimelineHeaderProps {
     maxDevelopers: number;
     onDailyCapacityChange?: (dayIndex: number, date: string, capacity: number) => void;
     today: string;
+    sprintDateOverrides?: SprintDateOverride[];
 }
 
 const TimelineHeader = ({
@@ -25,7 +30,8 @@ const TimelineHeader = ({
                             dayWidth,
                             maxDevelopers,
                             onDailyCapacityChange,
-                            today
+                            today,
+                            sprintDateOverrides = []
                         }: TimelineHeaderProps) => {
     const startDt = useMemo(() => parseDate(startDate), [startDate]);
 
@@ -156,16 +162,41 @@ const TimelineHeader = ({
                 }}
             >
                 {sprintPositions.map(({sprint, left, width}) => {
-                    const startDt = parseDate(sprint.startDate);
-                    const endDt = parseDate(sprint.endDate);
+                    const sprintStartDt = parseDate(sprint.startDate);
+                    const sprintEndDt = parseDate(sprint.endDate);
+                    const isOverridden = !!getSprintDateOverride(sprint.id, sprintDateOverrides);
+                    // Calculate workdays (inclusive of both start and end dates)
+                    const sprintWorkDays = workDaysBetween(sprintStartDt, sprintEndDt.plus({ days: 1 }));
+                    const isNonStandardLength = sprintWorkDays !== EXPECTED_SPRINT_WORKDAYS;
+
+                    // Determine background color priority: non-standard length (warning) > overridden > default
+                    let bgColor: string | undefined;
+                    if (isNonStandardLength) {
+                        bgColor = 'warning.main';
+                    } else if (isOverridden) {
+                        bgColor = 'warning.dark';
+                    }
+
                     const tooltipContent = (
                         <Box sx={{p: 0.5}}>
                             <Typography variant="subtitle2" fontWeight="bold">{sprint.name}</Typography>
+                            {isOverridden && (
+                                <Typography variant="caption" display="block" sx={{ color: 'warning.light', fontStyle: 'italic' }}>
+                                    (Dates manually overridden)
+                                </Typography>
+                            )}
                             <Typography variant="caption" display="block">
-                                Start: {startDt.toFormat('MMM d, yyyy')}
+                                Start: {sprintStartDt.toFormat('MMM d, yyyy')}
                             </Typography>
                             <Typography variant="caption" display="block">
-                                End: {endDt.toFormat('MMM d, yyyy')}
+                                End: {sprintEndDt.toFormat('MMM d, yyyy')}
+                            </Typography>
+                            <Typography variant="caption" display="block" sx={{
+                                mt: 0.5,
+                                color: isNonStandardLength ? 'warning.light' : undefined,
+                                fontWeight: isNonStandardLength ? 'bold' : undefined
+                            }}>
+                                Workdays: {sprintWorkDays} {isNonStandardLength && `(expected ${EXPECTED_SPRINT_WORKDAYS})`}
                             </Typography>
                         </Box>
                     );
@@ -185,12 +216,17 @@ const TimelineHeader = ({
                                     px: 1,
                                     overflow: 'hidden',
                                     cursor: 'default',
+                                    bgcolor: bgColor,
+                                    gap: 0.5,
                                 }}
                             >
+                                {isNonStandardLength && (
+                                    <WarningIcon sx={{ fontSize: 14, color: 'warning.contrastText' }} />
+                                )}
                                 <Typography
                                     variant="caption"
                                     sx={{
-                                        color: 'primary.contrastText',
+                                        color: isNonStandardLength ? 'warning.contrastText' : 'primary.contrastText',
                                         fontWeight: 'medium',
                                         whiteSpace: 'nowrap',
                                         overflow: 'hidden',

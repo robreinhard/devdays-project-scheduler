@@ -35,4 +35,15 @@ export const QUERY_PARAM_KEYS = {
   END_DATE: 'end',
   MAX_DEVS: 'maxDevs',
   DAILY_CAPS: 'dc',
+  SPRINT_DATES: 'sprintDates',
+  AUTO_ADJUST_START: 'autoAdjust',
 } as const;
+
+/**
+ * Sprint date override - allows manually overriding JIRA sprint dates
+ */
+export interface SprintDateOverride {
+  sprintId: number;
+  startDate: string;  // ISO date (YYYY-MM-DD)
+  endDate: string;    // ISO date (YYYY-MM-DD)
+}

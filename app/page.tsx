@@ -18,6 +18,7 @@ const HomeContent = () => {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     connected: false,
   });
+  const [hasSprintOverlap, setHasSprintOverlap] = useState(false);
 
   const {
     epicKeys,
@@ -25,9 +26,15 @@ const HomeContent = () => {
     sprintCapacities,
     maxDevelopers,
     dailyCapacityOverrides,
+    sprintDateOverrides,
+    autoAdjustStartDate,
     setDailyCapacityOverride,
   } = useAppState();
   const { ganttData, isLoading, error, generate, clear } = useGanttData();
+
+  const handleSprintOverlapChange = useCallback((hasOverlap: boolean) => {
+    setHasSprintOverlap(hasOverlap);
+  }, []);
 
   // Track previous values to detect changes
   const prevValuesRef = useRef<{
@@ -35,6 +42,8 @@ const HomeContent = () => {
     sprintCapacities: string;
     maxDevelopers: number;
     dailyCapacityOverrides: string;
+    sprintDateOverrides: string;
+    autoAdjustStartDate: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -70,12 +79,12 @@ const HomeContent = () => {
 
   // Auto-generate when prerequisites are met and values change
   useEffect(() => {
-    // Check prerequisites
-    const canGenerate = epicKeys.length > 0 && sprintCapacities.length > 0 && maxDevelopers > 0;
+    // Check prerequisites - don't generate if there's sprint overlap
+    const canGenerate = epicKeys.length > 0 && sprintCapacities.length > 0 && maxDevelopers > 0 && !hasSprintOverlap;
 
     if (!canGenerate) {
-      // Clear gantt data if prerequisites are no longer met
-      if (ganttData && (epicKeys.length === 0 || sprintCapacities.length === 0)) {
+      // Clear gantt data if prerequisites are no longer met or there's overlap
+      if (ganttData && (epicKeys.length === 0 || sprintCapacities.length === 0 || hasSprintOverlap)) {
         clear();
       }
       return;
@@ -87,6 +96,8 @@ const HomeContent = () => {
       sprintCapacities: JSON.stringify(sprintCapacities),
       maxDevelopers,
       dailyCapacityOverrides: JSON.stringify(dailyCapacityOverrides),
+      sprintDateOverrides: JSON.stringify(sprintDateOverrides),
+      autoAdjustStartDate,
     };
 
     // Check if values have changed
@@ -95,14 +106,16 @@ const HomeContent = () => {
       prev.epicKeys !== currentValues.epicKeys ||
       prev.sprintCapacities !== currentValues.sprintCapacities ||
       prev.maxDevelopers !== currentValues.maxDevelopers ||
-      prev.dailyCapacityOverrides !== currentValues.dailyCapacityOverrides;
+      prev.dailyCapacityOverrides !== currentValues.dailyCapacityOverrides ||
+      prev.sprintDateOverrides !== currentValues.sprintDateOverrides ||
+      prev.autoAdjustStartDate !== currentValues.autoAdjustStartDate;
 
     if (hasChanged) {
       prevValuesRef.current = currentValues;
       const capacitiesWithOverrides = buildCapacitiesWithOverrides();
-      generate(epicKeys, capacitiesWithOverrides, maxDevelopers);
+      generate(epicKeys, capacitiesWithOverrides, maxDevelopers, { sprintDateOverrides, autoAdjustStartDate });
     }
-  }, [epicKeys, sprintCapacities, maxDevelopers, dailyCapacityOverrides, buildCapacitiesWithOverrides, generate, clear, ganttData]);
+  }, [epicKeys, sprintCapacities, maxDevelopers, dailyCapacityOverrides, sprintDateOverrides, autoAdjustStartDate, hasSprintOverlap, buildCapacitiesWithOverrides, generate, clear, ganttData]);
 
   // Handle daily capacity changes from the gantt chart
   const handleDailyCapacityChange = useCallback((dayIndex: number, date: string, capacity: number) => {
@@ -162,7 +175,7 @@ const HomeContent = () => {
         }}
       >
         <Sidebar>
-          <SidebarContent isGenerating={isLoading} />
+          <SidebarContent isGenerating={isLoading} onSprintOverlapChange={handleSprintOverlapChange} />
         </Sidebar>
         <MainContent>
           {error && (
@@ -175,6 +188,7 @@ const HomeContent = () => {
               data={ganttData}
               maxDevelopers={maxDevelopers}
               onDailyCapacityChange={handleDailyCapacityChange}
+              sprintDateOverrides={sprintDateOverrides}
             />
           ) : (
             <Box

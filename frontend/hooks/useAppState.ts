@@ -104,7 +104,7 @@ interface UseAppStateResult {
   setBoardId: (boardId: number | undefined) => void;
   addEpic: (epic: JiraEpic) => void;
   removeEpic: (epicKey: string) => void;
-  loadEpicsByKeys: (keys: string[]) => Promise<void>;
+  loadEpicsByKeys: (keys: string[], updateUrlWithKeys?: boolean) => Promise<void>;
   setSprintCapacities: (capacities: SprintCapacity[]) => void;
   setViewStartDate: (date: string | undefined) => void;
   setViewEndDate: (date: string | undefined) => void;
@@ -214,18 +214,32 @@ export const useAppState = (): UseAppStateResult => {
   const removeEpic = useCallback((epicKey: string) => {
     setEpics((prev) => prev.filter((e) => e.key !== epicKey));
 
+    // Remove from loaded keys ref so it can be reloaded later
+    loadedKeysRef.current.delete(epicKey);
+
     // Update URL - read current epicKeys from searchParams ref
     const currentKeys = searchParamsRef.current.get(QUERY_PARAM_KEYS.EPICS)?.split(',').filter(Boolean) ?? [];
     const newKeys = currentKeys.filter((k) => k !== epicKey);
     updateUrl(QUERY_PARAM_KEYS.EPICS, newKeys.length > 0 ? newKeys.join(',') : null);
   }, [updateUrl]);
 
-  const loadEpicsByKeys = useCallback(async (keys: string[]) => {
+  const loadEpicsByKeys = useCallback(async (keys: string[], updateUrlWithKeys = false) => {
     const keysToLoad = keys.filter((key) => !loadedKeysRef.current.has(key));
-    if (keysToLoad.length === 0) return;
+    if (keysToLoad.length === 0) {
+      // Even if no keys to load, we may need to update URL (for paste functionality)
+      if (updateUrlWithKeys && keys.length > 0) {
+        const currentKeys = searchParamsRef.current.get(QUERY_PARAM_KEYS.EPICS)?.split(',').filter(Boolean) ?? [];
+        const newKeys = [...new Set([...currentKeys, ...keys])];
+        if (newKeys.length !== currentKeys.length || !newKeys.every((k, i) => k === currentKeys[i])) {
+          updateUrl(QUERY_PARAM_KEYS.EPICS, newKeys.join(','));
+        }
+      }
+      return;
+    }
 
     setIsLoading(true);
     const newEpics: JiraEpic[] = [];
+    const successfulKeys: string[] = [];
 
     for (const key of keysToLoad) {
       try {
@@ -235,6 +249,7 @@ export const useAppState = (): UseAppStateResult => {
         if (data.epic) {
           newEpics.push(data.epic);
           loadedKeysRef.current.add(key);
+          successfulKeys.push(key);
         }
       } catch (error) {
         console.error(`Failed to load epic ${key}:`, error);
@@ -247,10 +262,17 @@ export const useAppState = (): UseAppStateResult => {
         const uniqueNewEpics = newEpics.filter((e) => !existingKeys.has(e.key));
         return uniqueNewEpics.length > 0 ? [...prev, ...uniqueNewEpics] : prev;
       });
+
+      // Update URL with successfully loaded keys (when called from paste)
+      if (updateUrlWithKeys) {
+        const currentKeys = searchParamsRef.current.get(QUERY_PARAM_KEYS.EPICS)?.split(',').filter(Boolean) ?? [];
+        const newKeys = [...new Set([...currentKeys, ...successfulKeys])];
+        updateUrl(QUERY_PARAM_KEYS.EPICS, newKeys.join(','));
+      }
     }
 
     setIsLoading(false);
-  }, []);
+  }, [updateUrl]);
 
   const setSprintCapacities = useCallback((capacities: SprintCapacity[]) => {
     // When sprints change, clean up orphaned sprint date overrides

@@ -10,10 +10,13 @@ import CircularProgress from '@mui/material/CircularProgress';
 interface EpicKeyPasteProps {
   onLoadEpics: (keys: string[]) => void;
   loading?: boolean;
+  initialKeys?: string[];
 }
 
-const EpicKeyPaste = ({ onLoadEpics, loading = false }: EpicKeyPasteProps) => {
-  const [inputValue, setInputValue] = useState('');
+const EpicKeyPaste = ({ onLoadEpics, loading = false, initialKeys = [] }: EpicKeyPasteProps) => {
+  const [inputValue, setInputValue] = useState(() =>
+    initialKeys.length > 0 ? initialKeys.join(', ') : ''
+  );
 
   const handleLoad = () => {
     const keys = inputValue

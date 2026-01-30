@@ -58,6 +58,10 @@ const SidebarContent = ({isGenerating = false, onSprintOverlapChange}: SidebarCo
         onSprintOverlapChange?.(hasOverlap);
     }, [onSprintOverlapChange]);
 
+    const handleLoadEpicsByPaste = useCallback((keys: string[]) => {
+        loadEpicsByKeys(keys, true);
+    }, [loadEpicsByKeys]);
+
     // Workflow state
     const hasProjectSelected = !!projectKey;
     const hasBoardSelected = !!boardId;
@@ -289,8 +293,8 @@ const SidebarContent = ({isGenerating = false, onSprintOverlapChange}: SidebarCo
                 <Box sx={{pointerEvents: canSelectEpics ? 'auto' : 'none'}}>
                     <EpicSearch onEpicSelect={addEpic} selectedEpicKeys={epicKeys}/>
 
-                    <Box sx={{mt: 1.5}}>
-                        <EpicKeyPaste onLoadEpics={loadEpicsByKeys} loading={isLoading}/>
+                    <Box sx={{mt: 1.5, mb: 1.5}}>
+                        <EpicKeyPaste onLoadEpics={handleLoadEpicsByPaste} loading={isLoading} initialKeys={epicKeys}/>
                     </Box>
 
                     <SelectedEpics epics={epics} onRemove={removeEpic}/>

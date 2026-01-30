@@ -81,7 +81,26 @@ export const POST = async (request: NextRequest) => {
       maxDevelopers,
     });
 
-    return NextResponse.json(ganttData);
+    // Add debug info to response
+    const sprintBoundaries: { sprintId: number; name: string; jiraStart: string; jiraEnd: string; firstDay: string; lastDay: string }[] = [];
+    for (const sprint of selectedSprints) {
+      const sprintDays = ganttData.dailyCapacities.filter(d => d.sprintId === sprint.id);
+      sprintBoundaries.push({
+        sprintId: sprint.id,
+        name: sprint.name,
+        jiraStart: sprint.startDate,
+        jiraEnd: sprint.endDate,
+        firstDay: sprintDays[0]?.date ?? 'N/A',
+        lastDay: sprintDays[sprintDays.length - 1]?.date ?? 'N/A',
+      });
+    }
+
+    return NextResponse.json({
+      ...ganttData,
+      _debug: {
+        sprintBoundaries,
+      },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('GANTT generation failed:', error);

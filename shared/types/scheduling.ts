@@ -29,8 +29,10 @@ export interface SprintWithCapacity extends JiraSprint {
  * Scheduled ticket with computed start/end days
  */
 export interface ScheduledTicket extends JiraTicket {
-  startDay: number;      // Day offset from project start (work days)
-  endDay: number;        // Day offset from project start (work days)
+  startDay: number;      // Day index into dailyCapacities array
+  endDay: number;        // Day index into dailyCapacities array (exclusive)
+  startDate: string;     // Actual start date (ISO string)
+  endDate: string;       // Actual end date (ISO string) - last day of work
   sprintId: number;      // Which sprint it's slotted in
   parallelGroup: number; // Topological level (0 = no deps, higher = more deps)
   criticalPathWeight: number; // Total dev days of this ticket + all downstream tickets
@@ -45,6 +47,8 @@ export interface ScheduledEpic extends JiraEpic {
   totalDevDays: number;
   startDay: number;
   endDay: number;
+  startDate: string;     // Actual start date (ISO string)
+  endDate: string;       // Actual end date (ISO string) - last day of work
 }
 
 /**

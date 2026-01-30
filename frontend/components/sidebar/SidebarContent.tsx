@@ -32,7 +32,6 @@ const SidebarContent = ({ isGenerating = false }: SidebarContentProps) => {
   const {
     projectKey,
     boardId,
-    sprintFilter,
     epics,
     epicKeys,
     sprintCapacities,
@@ -41,7 +40,6 @@ const SidebarContent = ({ isGenerating = false }: SidebarContentProps) => {
     isLoading,
     setProjectKey,
     setBoardId,
-    setSprintFilter,
     addEpic,
     removeEpic,
     loadEpicsByKeys,
@@ -196,8 +194,6 @@ const SidebarContent = ({ isGenerating = false }: SidebarContentProps) => {
           onChange={setSprintCapacities}
           onOverlapError={handleOverlapError}
           boardId={boardId}
-          filter={sprintFilter}
-          onFilterChange={setSprintFilter}
         />
         {!canSelectSprints && (
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>

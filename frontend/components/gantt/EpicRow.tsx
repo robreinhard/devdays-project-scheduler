@@ -12,7 +12,7 @@ import Chip from '@mui/material/Chip';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import type { ScheduledEpic, ScheduledTicket, DayCapacityInfo } from '@/shared/types';
-import { parseDate, addWorkDays } from '@/shared/utils/dates';
+import { parseDate } from '@/shared/utils/dates';
 import TicketBar from './TicketBar';
 
 // JIRA base URL from environment
@@ -35,14 +35,6 @@ const getStatusColor = (status: string): 'default' | 'primary' | 'success' | 'wa
     return 'warning';
   }
   return 'default'; // To Do, Open, etc.
-};
-
-// Calculate the "Finished On" date for a ticket (the last work day before endDay)
-const getTicketFinishedOnDate = (projectStartDate: string, endDay: number) => {
-  const startDt = parseDate(projectStartDate);
-  const dayTicketShouldBeComplete = addWorkDays(startDt, endDay);
-  // Subtract 1 day (or 3 if Monday, meaning finished on Friday)
-  return dayTicketShouldBeComplete.minus({ day: dayTicketShouldBeComplete.weekday === 1 ? 3 : 1 });
 };
 
 interface EpicRowProps {
@@ -168,8 +160,8 @@ const EpicRow = ({
         <Collapse in={expanded}>
           {sortedTickets.map((ticket) => {
             const ticketUrl = getJiraUrl(ticket.key);
-            // Check if ticket should be finished by now based on "Finished On" date
-            const finishedOnDate = getTicketFinishedOnDate(startDate, ticket.endDay);
+            // Check if ticket should be finished by now based on endDate
+            const finishedOnDate = parseDate(ticket.endDate);
             const todayDt = today ? parseDate(today) : null;
             const isPastTicket = todayDt ? finishedOnDate < todayDt : false;
 
@@ -247,14 +239,8 @@ const EpicRow = ({
     );
   }
 
-  // Calculate epic dates for tooltip
-  const projectStartDt = parseDate(startDate);
-  const projectedCompleteDt = addWorkDays(projectStartDt, epic.endDay);
-  const projectedCompleteDate = projectedCompleteDt.minus({ day: projectedCompleteDt.weekday === 1 ? 3 : 1 });
-  // Worst case: if all dev days were done sequentially from the epic's start
-  const worstCaseEndDay = epic.startDay + epic.totalDevDays;
-  const worstCaseDt = addWorkDays(projectStartDt, worstCaseEndDay);
-  const worstCaseDate = worstCaseDt.minus({ day: worstCaseDt.weekday === 1 ? 3 : 1 });
+  // Use actual dates from scheduled epic
+  const projectedCompleteDate = parseDate(epic.endDate);
 
   const formatDate = (dt: { toFormat: (fmt: string) => string }) => dt.toFormat('MMM d, yyyy');
 
@@ -269,9 +255,6 @@ const EpicRow = ({
 
         <Typography variant="caption" color="text.secondary">Projected Complete:</Typography>
         <Typography variant="caption">{formatDate(projectedCompleteDate)}</Typography>
-
-        <Typography variant="caption" color="text.secondary">Worst Case:</Typography>
-        <Typography variant="caption">{formatDate(worstCaseDate)}</Typography>
       </Box>
     </Box>
   );
@@ -334,7 +317,6 @@ const EpicRow = ({
               ticket={ticket}
               dayWidth={dayWidth}
               rowHeight={rowHeight}
-              projectStartDate={startDate}
               epicColor={epicColor}
             />
           </Box>

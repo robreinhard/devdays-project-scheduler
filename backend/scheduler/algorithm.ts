@@ -10,19 +10,44 @@ import type {
   GanttData,
   SchedulingInput,
 } from '@/shared/types';
-import { parseDate, isWeekend, addWorkDays as addWorkDaysLuxon } from '@/shared/utils/dates';
+import { parseDate, isWeekend } from '@/shared/utils/dates';
+
+/**
+ * Helper to get actual date from dailyCapacity array
+ * endDay is exclusive, so endDate is the day before endDay (the last actual work day)
+ */
+const getDateFromDayIndex = (dayIndex: number, dailyCapacity: DayCapacity[]): string => {
+  if (dayIndex < 0) return dailyCapacity[0]?.date ?? '';
+  if (dayIndex >= dailyCapacity.length) return dailyCapacity[dailyCapacity.length - 1]?.date ?? '';
+  return dailyCapacity[dayIndex]?.date ?? '';
+};
+
+/**
+ * Get the end date (last actual work day) for a ticket
+ * Since endDay is exclusive (index of first day NOT worked), the actual last work day is endDay - 1
+ */
+const getEndDateFromDayIndex = (endDay: number, dailyCapacity: DayCapacity[]): string => {
+  const lastWorkDayIndex = endDay - 1;
+  return getDateFromDayIndex(lastWorkDayIndex, dailyCapacity);
+};
 
 /**
  * Get all work days in a sprint as an array of date strings.
- * End date is treated as exclusive (sprint ends at start of endDate, not end of endDate).
- * This handles adjacent sprints where Sprint A's endDate equals Sprint B's startDate.
+ * If end date/time is at midnight (start of day), treat it as exclusive (last day is the day before).
+ * Otherwise treat end date as inclusive.
  */
 const getSprintWorkDays = (sprint: JiraSprint): string[] => {
   const workDays: string[] = [];
   let current = parseDate(sprint.startDate);
-  const end = parseDate(sprint.endDate);
+  let end = parseDate(sprint.endDate);
 
-  while (current < end) {
+  // If end time is midnight (hour=0, minute=0), the sprint ends at the START of that day,
+  // meaning the last work day is the day before
+  if (end.hour === 0 && end.minute === 0) {
+    end = end.minus({ days: 1 });
+  }
+
+  while (current <= end) {
     if (!isWeekend(current)) {
       workDays.push(current.toISODate()!);
     }
@@ -275,6 +300,26 @@ const findNextSprintStart = (
 };
 
 /**
+ * Verify that all days from startDay to endDay-1 (inclusive) are in the same sprint
+ */
+const ticketCrossesSprintBoundary = (
+  startDay: number,
+  endDay: number,
+  dailyCapacity: DayCapacity[]
+): boolean => {
+  if (startDay >= dailyCapacity.length) return true;
+
+  const startSprintId = dailyCapacity[startDay].sprintId;
+  // endDay is exclusive, so check up to endDay - 1
+  for (let d = startDay; d < endDay && d < dailyCapacity.length; d++) {
+    if (dailyCapacity[d].sprintId !== startSprintId) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/**
  * Get the last day index of a sprint
  */
 const getSprintEndDayIndex = (
@@ -294,6 +339,41 @@ const getSprintEndDayIndex = (
 };
 
 /**
+ * Find a valid slot for a ticket that fits entirely within one sprint
+ * Returns the starting day index, or -1 if no valid slot found
+ */
+const findSlotWithinSprint = (
+  earliestStart: number,
+  ticketDevDays: number,
+  dailyCapacity: DayCapacity[]
+): number => {
+  let currentDayIndex = earliestStart;
+
+  while (currentDayIndex < dailyCapacity.length) {
+    const sprintEndIndex = getSprintEndDayIndex(currentDayIndex, dailyCapacity);
+    const remainingDaysInSprint = sprintEndIndex - currentDayIndex + 1;
+
+    // Check if ticket fits in remaining sprint days
+    if (ticketDevDays <= remainingDaysInSprint) {
+      const proposedEndDay = currentDayIndex + ticketDevDays;
+      const lastOccupiedDay = proposedEndDay - 1;
+      const startSprintId = dailyCapacity[currentDayIndex].sprintId;
+      const endSprintId = dailyCapacity[lastOccupiedDay]?.sprintId;
+
+      // Verify the last occupied day is still in the same sprint as the start
+      if (lastOccupiedDay < dailyCapacity.length && endSprintId === startSprintId) {
+        return currentDayIndex;
+      }
+    }
+
+    // Move to the start of next sprint
+    currentDayIndex = findNextSprintStart(currentDayIndex, dailyCapacity);
+  }
+
+  return -1; // No valid slot found
+};
+
+/**
  * Slot an epic's tickets using topological sort with parallel execution
  * Each ticket starts as soon as its specific blockers complete
  * Returns the scheduled tickets
@@ -307,10 +387,6 @@ const slotEpicLinear = (
   const scheduledTickets: ScheduledTicket[] = [];
   const epicTickets = getEpicTicketsTopological(epic.key, tickets);
   const epicTicketKeys = new Set(epicTickets.map(t => t.key));
-
-  console.log(`\n=== SLOTTING EPIC: ${epic.key} (Topological Sort) ===`);
-  console.log(`Tickets in topological order:`, epicTickets.map(t => `${t.key}(L${t.level},${t.devDays}d)`).join(', '));
-  console.log(`Starting at day index: ${startDayIndex}`);
 
   // Track end days for each scheduled ticket (for dependency resolution)
   const ticketEndDays = new Map<string, number>();
@@ -329,32 +405,17 @@ const slotEpicLinear = (
       }
     }
 
-    console.log(`\n--- Processing ticket: ${ticket.key} (${ticket.devDays} days, level ${ticket.level}) ---`);
-    console.log(`  Earliest start based on blockers: day ${earliestStart}`);
+    // Find a valid slot within a single sprint
+    const slotStartDay = findSlotWithinSprint(earliestStart, ticket.devDays, dailyCapacity);
 
-    // Find a position where the ticket fits within a single sprint
-    let currentDayIndex = earliestStart;
-    while (currentDayIndex < dailyCapacity.length) {
-      const sprintEndIndex = getSprintEndDayIndex(currentDayIndex, dailyCapacity);
-      const remainingDaysInSprint = sprintEndIndex - currentDayIndex + 1;
-
-      if (ticket.devDays <= remainingDaysInSprint) {
-        break;
-      }
-
-      currentDayIndex = findNextSprintStart(currentDayIndex, dailyCapacity);
-    }
-
-    if (currentDayIndex >= dailyCapacity.length) {
-      console.log(`  ✗ Ran out of sprints! Cannot slot ticket ${ticket.key}`);
+    if (slotStartDay < 0) {
       break;
     }
 
-    const startDay = currentDayIndex;
+    const startDay = slotStartDay;
     const endDay = startDay + ticket.devDays;
-    const sprintId = dailyCapacity[currentDayIndex].sprintId;
-
-    console.log(`  → Scheduled: days ${startDay}-${endDay - 1} (sprint ${sprintId}, parallel group ${ticket.level})`);
+    const lastOccupiedDay = endDay - 1;
+    const sprintId = dailyCapacity[startDay].sprintId;
 
     // Consume capacity for this ticket
     for (let d = startDay; d < endDay && d < dailyCapacity.length; d++) {
@@ -364,10 +425,19 @@ const slotEpicLinear = (
     // Track this ticket's end day for dependent tickets
     ticketEndDays.set(ticket.key, endDay);
 
+    // Verify no sprint crossing
+    const startSprintId = dailyCapacity[startDay]?.sprintId;
+    const endSprintId = dailyCapacity[lastOccupiedDay]?.sprintId;
+    if (startSprintId !== endSprintId) {
+      throw new Error(`SPRINT CROSSING: ${ticket.key} (${ticket.devDays}d) starts on day ${startDay} (sprint ${startSprintId}) but ends on day ${lastOccupiedDay} (sprint ${endSprintId})`);
+    }
+
     scheduledTickets.push({
       ...ticket,
       startDay,
       endDay,
+      startDate: getDateFromDayIndex(startDay, dailyCapacity),
+      endDate: getEndDateFromDayIndex(endDay, dailyCapacity),
       sprintId,
       parallelGroup: ticket.level,
       criticalPathWeight: ticket.downstreamWeight,
@@ -375,7 +445,6 @@ const slotEpicLinear = (
     });
   }
 
-  console.log(`\n=== FINISHED EPIC: ${epic.key} ===\n`);
   return scheduledTickets;
 };
 
@@ -395,11 +464,16 @@ const findNextAvailableSlot = (
     if (dailyCapacity[dayIndex].remainingCapacity > 0) {
       const sprintEndIndex = getSprintEndDayIndex(dayIndex, dailyCapacity);
       const remainingDaysInSprint = sprintEndIndex - dayIndex + 1;
+      const proposedEndDay = dayIndex + ticketDevDays;
+      const lastOccupiedDay = proposedEndDay - 1;
 
-      if (ticketDevDays <= remainingDaysInSprint) {
+      // Verify ticket fits in sprint AND last occupied day is in same sprint
+      if (ticketDevDays <= remainingDaysInSprint &&
+          lastOccupiedDay < dailyCapacity.length &&
+          dailyCapacity[lastOccupiedDay].sprintId === dailyCapacity[dayIndex].sprintId) {
         // Check if all days have capacity
         let allHaveCapacity = true;
-        for (let d = dayIndex; d < dayIndex + ticketDevDays && d < dailyCapacity.length; d++) {
+        for (let d = dayIndex; d < proposedEndDay && d < dailyCapacity.length; d++) {
           if (dailyCapacity[d].remainingCapacity <= 0) {
             allHaveCapacity = false;
             break;
@@ -530,7 +604,14 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
       }
 
       const endDay = startDayIndex + ticket.devDays;
+      const lastOccupiedDay = endDay - 1;
       const sprintId = dailyCapacity[startDayIndex].sprintId;
+      const lastDaySprintId = dailyCapacity[lastOccupiedDay]?.sprintId;
+
+      // Verify no sprint crossing
+      if (sprintId !== lastDaySprintId) {
+        throw new Error(`SPRINT CROSSING: ${ticket.key} (${ticket.devDays}d) starts on day ${startDayIndex} (sprint ${sprintId}) but ends on day ${lastOccupiedDay} (sprint ${lastDaySprintId})`);
+      }
 
       // Consume capacity
       for (let d = startDayIndex; d < endDay && d < dailyCapacity.length; d++) {
@@ -544,6 +625,8 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
         ...ticket,
         startDay: startDayIndex,
         endDay,
+        startDate: getDateFromDayIndex(startDayIndex, dailyCapacity),
+        endDate: getEndDateFromDayIndex(endDay, dailyCapacity),
         sprintId,
         parallelGroup: ticket.level,
         criticalPathWeight: ticket.downstreamWeight,
@@ -622,13 +705,17 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
     }
 
     const epicTotalDevDays = epicTickets.reduce((sum, t) => sum + t.devDays, 0);
+    const epicStartDay = epicTickets.length > 0 ? Math.min(...epicTickets.map(t => t.startDay)) : 0;
+    const epicEndDay = epicTickets.length > 0 ? Math.max(...epicTickets.map(t => t.endDay)) : 0;
 
     return {
       ...epic,
       tickets: epicTickets,
       totalDevDays: epicTotalDevDays,
-      startDay: epicTickets.length > 0 ? Math.min(...epicTickets.map(t => t.startDay)) : 0,
-      endDay: epicTickets.length > 0 ? Math.max(...epicTickets.map(t => t.endDay)) : 0,
+      startDay: epicStartDay,
+      endDay: epicEndDay,
+      startDate: getDateFromDayIndex(epicStartDay, dailyCapacity),
+      endDate: getEndDateFromDayIndex(epicEndDay, dailyCapacity),
     };
   });
 
@@ -645,16 +732,16 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
     usedCapacity: day.originalCapacity - day.remainingCapacity,
   }));
 
-  // Calculate project end date
+  // Calculate project end date from actual dates
   const maxEndDay = Math.max(...allScheduledTickets.map(t => t.endDay), 0);
-  const projectEndDate = addWorkDaysLuxon(projectStartDate, maxEndDay);
+  const projectEndDateStr = getEndDateFromDayIndex(maxEndDay, dailyCapacity);
 
   return {
     epics: scheduledEpics,
     sprints: sprintsWithCapacity,
     dailyCapacities: dailyCapacityInfo,
     projectStartDate: projectStartDate.toISODate()!,
-    projectEndDate: projectEndDate.toISODate()!,
+    projectEndDate: projectEndDateStr || projectStartDate.toISODate()!,
     totalDevDays,
     totalDays: maxEndDay,
   };

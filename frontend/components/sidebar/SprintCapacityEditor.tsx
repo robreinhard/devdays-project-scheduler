@@ -1,18 +1,14 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
-import Checkbox from '@mui/material/Checkbox';
-import FormControlLabel from '@mui/material/FormControlLabel';
+import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import TextField from '@mui/material/TextField';
-import InputAdornment from '@mui/material/InputAdornment';
-import IconButton from '@mui/material/IconButton';
-import ClearIcon from '@mui/icons-material/Clear';
-import SearchIcon from '@mui/icons-material/Search';
 import type { JiraSprint, SprintCapacity } from '@/shared/types';
 
 interface SprintOverlap {
@@ -61,8 +57,6 @@ interface SprintCapacityEditorProps {
   onOverlapError?: (hasOverlap: boolean) => void;
   defaultCapacity?: number;
   boardId?: number;
-  filter?: string;
-  onFilterChange?: (filter: string | undefined) => void;
 }
 
 const DEBOUNCE_DELAY = 300;
@@ -73,42 +67,16 @@ const SprintCapacityEditor = ({
   onOverlapError,
   defaultCapacity = 20,
   boardId,
-  filter = '',
-  onFilterChange,
 }: SprintCapacityEditorProps) => {
-  const [sprints, setSprints] = useState<JiraSprint[]>([]);
+  const [options, setOptions] = useState<JiraSprint[]>([]);
   const [selectedSprintsCache, setSelectedSprintsCache] = useState<Map<number, JiraSprint>>(new Map());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [localFilter, setLocalFilter] = useState(filter);
+  const [inputValue, setInputValue] = useState('');
+  const [open, setOpen] = useState(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Sync local filter with prop when it changes externally
-  useEffect(() => {
-    setLocalFilter(filter);
-  }, [filter]);
-
-  // Debounced filter change handler - updates URL
-  const handleFilterChange = useCallback((value: string) => {
-    setLocalFilter(value);
-
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    debounceTimerRef.current = setTimeout(() => {
-      onFilterChange?.(value || undefined);
-    }, DEBOUNCE_DELAY);
-  }, [onFilterChange]);
-
-  const handleClearFilter = useCallback(() => {
-    setLocalFilter('');
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    onFilterChange?.(undefined);
-  }, [onFilterChange]);
+  const fetchedSprintIdsRef = useRef<Set<number>>(new Set());
 
   // Cleanup on unmount
   useEffect(() => {
@@ -122,16 +90,54 @@ const SprintCapacityEditor = ({
     };
   }, []);
 
+  // Fetch selected sprint details on mount/when sprintCapacities changes
+  useEffect(() => {
+    const missingSprintIds = sprintCapacities
+      .map((sc) => sc.sprintId)
+      .filter((id) => !fetchedSprintIdsRef.current.has(id));
+
+    if (missingSprintIds.length === 0) return;
+
+    // Mark these IDs as being fetched
+    for (const id of missingSprintIds) {
+      fetchedSprintIdsRef.current.add(id);
+    }
+
+    const fetchMissingSprints = async () => {
+      try {
+        const response = await fetch('/api/sprints/by-ids', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sprintIds: missingSprintIds }),
+        });
+        const data = await response.json();
+
+        if (data.sprints && Array.isArray(data.sprints)) {
+          setSelectedSprintsCache((prev) => {
+            const newCache = new Map(prev);
+            for (const sprint of data.sprints) {
+              newCache.set(sprint.id, sprint);
+            }
+            return newCache;
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch selected sprints:', err);
+      }
+    };
+
+    fetchMissingSprints();
+  }, [sprintCapacities]);
+
   const selectedSprintIds = useMemo(
     () => sprintCapacities.map((sc) => sc.sprintId),
     [sprintCapacities]
   );
 
-  // Fetch sprints when boardId or filter (from URL) changes
-  useEffect(() => {
+  // Debounced fetch sprints
+  const fetchSprints = useCallback(async (query: string) => {
     if (boardId === undefined) {
-      setSprints([]);
-      setLoading(false);
+      setOptions([]);
       return;
     }
 
@@ -141,99 +147,93 @@ const SprintCapacityEditor = ({
     }
     abortControllerRef.current = new AbortController();
 
-    const fetchSprints = async () => {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
 
-      try {
-        const params = new URLSearchParams();
-        params.set('boardId', boardId.toString());
-        if (filter) {
-          params.set('q', filter);
-        }
+    try {
+      const params = new URLSearchParams();
+      params.set('boardId', boardId.toString());
+      if (query) {
+        params.set('q', query);
+      }
 
-        const response = await fetch(`/api/sprints?${params}`, {
-          signal: abortControllerRef.current?.signal,
+      const response = await fetch(`/api/sprints?${params}`, {
+        signal: abortControllerRef.current?.signal,
+      });
+      const data = await response.json();
+
+      if (data.error) {
+        setError(data.message || data.error);
+        setOptions([]);
+      } else {
+        const sprintsWithDates = (data.sprints || []).filter(
+          (sprint: JiraSprint) => sprint.startDate && sprint.endDate
+        );
+        // Filter out already selected sprints from dropdown options
+        const availableSprints = sprintsWithDates.filter(
+          (sprint: JiraSprint) => !selectedSprintIds.includes(sprint.id)
+        );
+        setOptions(availableSprints);
+
+        // Cache all sprints we receive
+        setSelectedSprintsCache((prev) => {
+          const newCache = new Map(prev);
+          for (const sprint of sprintsWithDates) {
+            newCache.set(sprint.id, sprint);
+          }
+          return newCache;
         });
-        const data = await response.json();
-
-        if (data.error) {
-          setError(data.message || data.error);
-        } else {
-          const sprintsWithDates = (data.sprints || []).filter(
-            (sprint: JiraSprint) => sprint.startDate && sprint.endDate
-          );
-          setSprints(sprintsWithDates);
-
-          // Cache any selected sprints we receive
-          setSelectedSprintsCache((prev) => {
-            const newCache = new Map(prev);
-            for (const sprint of sprintsWithDates) {
-              if (selectedSprintIds.includes(sprint.id)) {
-                newCache.set(sprint.id, sprint);
-              }
-            }
-            return newCache;
-          });
-        }
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          return; // Ignore abort errors
-        }
-        setError('Failed to load sprints');
-      } finally {
-        setLoading(false);
       }
-    };
-
-    fetchSprints();
-  }, [boardId, filter, selectedSprintIds]);
-
-  // Build display list: show fetched sprints + any selected sprints not in current results
-  const displaySprints = useMemo(() => {
-    const sprintMap = new Map<number, JiraSprint>();
-
-    // Add all fetched sprints
-    for (const sprint of sprints) {
-      sprintMap.set(sprint.id, sprint);
-    }
-
-    // Add cached selected sprints that aren't in current results
-    for (const sprintId of selectedSprintIds) {
-      if (!sprintMap.has(sprintId) && selectedSprintsCache.has(sprintId)) {
-        sprintMap.set(sprintId, selectedSprintsCache.get(sprintId)!);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return; // Ignore abort errors
       }
+      setError('Failed to load sprints');
+      setOptions([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [boardId, selectedSprintIds]);
+
+  // Debounced input change handler
+  const handleInputChange = useCallback((_event: React.SyntheticEvent, value: string) => {
+    setInputValue(value);
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
     }
 
-    // Sort: selected first, then by start date
-    return Array.from(sprintMap.values()).sort((a, b) => {
-      const aSelected = selectedSprintIds.includes(a.id);
-      const bSelected = selectedSprintIds.includes(b.id);
-      if (aSelected && !bSelected) return -1;
-      if (!aSelected && bSelected) return 1;
-      if (!a.startDate) return 1;
-      if (!b.startDate) return -1;
-      return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
-    });
-  }, [sprints, selectedSprintIds, selectedSprintsCache]);
+    debounceTimerRef.current = setTimeout(() => {
+      fetchSprints(value);
+    }, DEBOUNCE_DELAY);
+  }, [fetchSprints]);
 
-  // Use all known sprints for overlap detection
-  const allKnownSprints = useMemo(() => {
-    const sprintMap = new Map<number, JiraSprint>();
-    for (const sprint of sprints) {
-      sprintMap.set(sprint.id, sprint);
-    }
-    for (const [id, sprint] of selectedSprintsCache) {
-      if (!sprintMap.has(id)) {
-        sprintMap.set(id, sprint);
-      }
-    }
-    return Array.from(sprintMap.values());
-  }, [sprints, selectedSprintsCache]);
+  // Fetch initial sprints when dropdown opens
+  const handleOpen = useCallback(() => {
+    setOpen(true);
+    fetchSprints(inputValue);
+  }, [fetchSprints, inputValue]);
 
+  const handleClose = useCallback(() => {
+    setOpen(false);
+  }, []);
+
+  // Get selected sprints from cache
+  const selectedSprints = useMemo(() => {
+    return selectedSprintIds
+      .map((id) => selectedSprintsCache.get(id))
+      .filter((sprint): sprint is JiraSprint => sprint !== undefined)
+      .sort((a, b) => {
+        if (!a.startDate) return 1;
+        if (!b.startDate) return -1;
+        return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+      });
+  }, [selectedSprintIds, selectedSprintsCache]);
+
+  // Use cached sprints for overlap detection
   const overlaps = useMemo(
-    () => detectSprintOverlaps(allKnownSprints, selectedSprintIds),
-    [allKnownSprints, selectedSprintIds]
+    () => detectSprintOverlaps(selectedSprints, selectedSprintIds),
+    [selectedSprints, selectedSprintIds]
   );
 
   // Notify parent of overlap state changes
@@ -241,29 +241,30 @@ const SprintCapacityEditor = ({
     onOverlapError?.(overlaps.length > 0);
   }, [overlaps.length, onOverlapError]);
 
-  const isSelected = (sprintId: number) =>
-    sprintCapacities.some((sc) => sc.sprintId === sprintId);
-
-  const handleToggle = (sprintId: number) => {
-    const sprint = displaySprints.find((s) => s.id === sprintId);
-
-    if (isSelected(sprintId)) {
-      onChange(sprintCapacities.filter((sc) => sc.sprintId !== sprintId));
-    } else {
-      // Cache the sprint when selecting
-      if (sprint) {
-        setSelectedSprintsCache((prev) => {
-          const newCache = new Map(prev);
-          newCache.set(sprintId, sprint);
-          return newCache;
-        });
-      }
+  // Handle sprint selection from dropdown
+  const handleSelect = useCallback((_event: React.SyntheticEvent, value: JiraSprint | null) => {
+    if (value) {
+      // Cache the sprint
+      setSelectedSprintsCache((prev) => {
+        const newCache = new Map(prev);
+        newCache.set(value.id, value);
+        return newCache;
+      });
+      // Add to selected capacities
       onChange([
         ...sprintCapacities,
-        { sprintId, devDaysCapacity: defaultCapacity },
+        { sprintId: value.id, devDaysCapacity: defaultCapacity },
       ]);
+      // Clear input and refresh options
+      setInputValue('');
+      fetchSprints('');
     }
-  };
+  }, [onChange, sprintCapacities, defaultCapacity, fetchSprints]);
+
+  // Handle removing a selected sprint
+  const handleRemove = useCallback((sprintId: number) => {
+    onChange(sprintCapacities.filter((sc) => sc.sprintId !== sprintId));
+  }, [onChange, sprintCapacities]);
 
   if (boardId === undefined) {
     return (
@@ -275,45 +276,59 @@ const SprintCapacityEditor = ({
     );
   }
 
-  if (error) {
-    return (
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="body2" color="error">
-          {error}
-        </Typography>
-      </Paper>
-    );
-  }
-
   return (
     <Box>
-      <TextField
-        size="small"
-        fullWidth
-        placeholder="Search sprints..."
-        value={localFilter}
-        onChange={(e) => handleFilterChange(e.target.value)}
-        sx={{ mb: 1 }}
-        slotProps={{
-          input: {
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon fontSize="small" color="action" />
-              </InputAdornment>
-            ),
-            endAdornment: (
-              <InputAdornment position="end">
-                {loading && <CircularProgress size={16} sx={{ mr: 1 }} />}
-                {localFilter && (
-                  <IconButton size="small" onClick={handleClearFilter} edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
+      <Autocomplete
+        open={open}
+        onOpen={handleOpen}
+        onClose={handleClose}
+        options={options}
+        loading={loading}
+        value={null}
+        inputValue={inputValue}
+        onInputChange={handleInputChange}
+        onChange={handleSelect}
+        getOptionLabel={(option) => option.name}
+        isOptionEqualToValue={(option, value) => option.id === value.id}
+        filterOptions={(x) => x}
+        noOptionsText={error || (inputValue.length === 0 ? 'Type to search sprints...' : 'No sprints found')}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            placeholder="Search sprints..."
+            size="small"
+            error={!!error}
+            slotProps={{
+              input: {
+                ...params.InputProps,
+                endAdornment: (
+                  <>
+                    {loading && <CircularProgress color="inherit" size={16} />}
+                    {params.InputProps.endAdornment}
+                  </>
+                ),
+              },
+            }}
+          />
+        )}
+        renderOption={(props, option) => {
+          const { key, ...restProps } = props;
+          return (
+            <Box component="li" key={key} {...restProps}>
+              <Box>
+                <Typography variant="body2">{option.name}</Typography>
+                {option.startDate && option.endDate && (
+                  <Typography variant="caption" color="text.secondary">
+                    {new Date(option.startDate).toLocaleDateString()} - {new Date(option.endDate).toLocaleDateString()}
+                  </Typography>
                 )}
-              </InputAdornment>
-            ),
-          },
+              </Box>
+            </Box>
+          );
         }}
+        sx={{ mb: 1 }}
       />
+
       {overlaps.length > 0 && (
         <Alert severity="error" sx={{ mb: 1 }}>
           Sprint overlap detected: {overlaps.map((o) =>
@@ -321,63 +336,23 @@ const SprintCapacityEditor = ({
           ).join(', ')}. Please resolve overlapping sprint dates before generating.
         </Alert>
       )}
-      <Paper variant="outlined" sx={{ maxHeight: 250, overflow: 'auto' }}>
-        {displaySprints.length === 0 ? (
-          <Box sx={{ p: 2, textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary">
-              {loading ? 'Searching...' : localFilter ? 'No sprints match search' : 'No sprints available'}
-            </Typography>
-          </Box>
-        ) : (
-          displaySprints.map((sprint) => {
-            const selected = isSelected(sprint.id);
-            const isFromCache = !sprints.some((s) => s.id === sprint.id);
 
-            return (
-              <Box
+      {selectedSprints.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+            Selected sprints ({selectedSprints.length})
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {selectedSprints.map((sprint) => (
+              <Chip
                 key={sprint.id}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  px: 1,
-                  py: 0.5,
-                  borderBottom: '1px solid',
-                  borderColor: 'divider',
-                  bgcolor: selected ? 'action.selected' : 'transparent',
-                }}
-              >
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      size="small"
-                      checked={selected}
-                      onChange={() => handleToggle(sprint.id)}
-                    />
-                  }
-                  label={
-                    <Typography
-                      variant="body2"
-                      noWrap
-                      sx={{
-                        maxWidth: 180,
-                        fontStyle: isFromCache && selected ? 'italic' : 'normal',
-                      }}
-                    >
-                      {sprint.name}
-                      {isFromCache && selected && ' (selected)'}
-                    </Typography>
-                  }
-                  sx={{ flex: 1 }}
-                />
-              </Box>
-            );
-          })
-        )}
-      </Paper>
-      {localFilter && sprints.length > 0 && (
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-          {sprints.length} sprint{sprints.length !== 1 ? 's' : ''} found
-        </Typography>
+                label={sprint.name}
+                size="small"
+                onDelete={() => handleRemove(sprint.id)}
+              />
+            ))}
+          </Box>
+        </Paper>
       )}
     </Box>
   );

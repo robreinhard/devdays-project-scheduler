@@ -24,6 +24,7 @@ interface UseGanttDataResult {
   error: string | null;
   generate: (epicKeys: string[], sprintCapacities: SprintCapacity[], maxDevelopers: number, options?: GenerateOptions) => Promise<void>;
   clear: () => void;
+  clearCache: () => void;
 }
 
 export const useGanttData = (): UseGanttDataResult => {
@@ -114,5 +115,9 @@ export const useGanttData = (): UseGanttDataResult => {
     cachedDataRef.current = null;
   }, []);
 
-  return { ganttData, isLoading, error, generate, clear };
+  const clearCache = useCallback(() => {
+    cachedDataRef.current = null;
+  }, []);
+
+  return { ganttData, isLoading, error, generate, clear, clearCache };
 };

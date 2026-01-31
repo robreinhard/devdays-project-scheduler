@@ -123,11 +123,11 @@ const EpicRow = ({
         {/* Epic label */}
         <Box
           sx={{
+            height: rowHeight,
             minHeight: rowHeight,
             display: 'flex',
             alignItems: 'center',
             px: 1,
-            py: 0.5,
             borderBottom: 1,
             borderColor: 'divider',
             bgcolor: epicColor,
@@ -136,7 +136,7 @@ const EpicRow = ({
           <IconButton size="small" onClick={onToggleExpanded} sx={{ mr: 0.5, color: 'white', flexShrink: 0 }}>
             {expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
           </IconButton>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
             {epicUrl ? (
               <Link
                 href={epicUrl}
@@ -148,13 +148,23 @@ const EpicRow = ({
                   fontSize: 12,
                   fontWeight: 500,
                   display: 'block',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                   '&:hover': { color: 'rgba(255,255,255,0.9)' },
                 }}
               >
                 {epic.key} | {epic.summary}
               </Link>
             ) : (
-              <Box sx={{ color: 'white', fontSize: 12, fontWeight: 500 }}>
+              <Box sx={{
+                color: 'white',
+                fontSize: 12,
+                fontWeight: 500,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}>
                 {epic.key} | {epic.summary}
               </Box>
             )}

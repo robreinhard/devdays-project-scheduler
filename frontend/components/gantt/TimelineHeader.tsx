@@ -110,7 +110,7 @@ const TimelineHeader = ({
 
 
     return (
-        <Box sx={{position: 'sticky', top: 0, zIndex: 1, bgcolor: 'background.paper'}}>
+        <Box sx={{position: 'sticky', top: 0, zIndex: 2, bgcolor: 'background.paper'}}>
             {/* Month row */}
             <Box
                 sx={{

@@ -115,19 +115,21 @@ const TimelineHeader = ({
             <Box
                 sx={{
                     height: 24,
-                    position: 'relative',
                     borderBottom: 1,
                     borderColor: 'divider',
                     bgcolor: 'grey.200',
+                    display: 'flex',
+                    ml: `${chartLeftOffset}px`,
+                    borderLeft: chartLeftOffset > 0 ? 1 : 0,
+                    borderLeftColor: 'divider',
                 }}
             >
-                {monthPositions.map(({key, name, startDay, dayCount}) => (
+                {monthPositions.map(({key, name, dayCount}) => (
                     <Box
                         key={key}
                         sx={{
-                            position: 'absolute',
-                            left: chartLeftOffset + startDay * dayWidth,
                             width: dayCount * dayWidth,
+                            minWidth: dayCount * dayWidth,
                             height: '100%',
                             display: 'flex',
                             alignItems: 'center',
@@ -157,13 +159,16 @@ const TimelineHeader = ({
             <Box
                 sx={{
                     height: 30,
-                    position: 'relative',
                     borderBottom: 1,
                     borderColor: 'divider',
                     bgcolor: 'primary.main',
+                    display: 'flex',
+                    ml: `${chartLeftOffset}px`,
+                    borderLeft: chartLeftOffset > 0 ? 1 : 0,
+                    borderLeftColor: 'divider',
                 }}
             >
-                {sprintPositions.map(({sprint, left, width}) => {
+                {sprintPositions.map(({sprint, width}) => {
                     const sprintStartDt = parseDate(sprint.startDate);
                     const sprintEndDt = parseDate(sprint.endDate);
                     const isOverridden = !!getSprintDateOverride(sprint.id, sprintDateOverrides);
@@ -206,9 +211,8 @@ const TimelineHeader = ({
                         <Tooltip key={sprint.id} title={tooltipContent} arrow placement="top">
                             <Box
                                 sx={{
-                                    position: 'absolute',
-                                    left,
                                     width,
+                                    minWidth: width,
                                     height: '100%',
                                     display: 'flex',
                                     alignItems: 'center',
@@ -253,6 +257,8 @@ const TimelineHeader = ({
                     bgcolor: 'grey.100',
                     display: 'flex',
                     ml: `${chartLeftOffset}px`,
+                    borderLeft: chartLeftOffset > 0 ? 1 : 0,
+                    borderLeftColor: 'divider',
                 }}
             >
                 {dayMarkers.map(({day, dateStr, dayOfMonth, weekdayAbbrev}) => {
@@ -295,6 +301,8 @@ const TimelineHeader = ({
                     bgcolor: 'grey.50',
                     display: 'flex',
                     ml: `${chartLeftOffset}px`,
+                    borderLeft: chartLeftOffset > 0 ? 1 : 0,
+                    borderLeftColor: 'divider',
                 }}
             >
                 {dayMarkers.map(({day, dateStr}) => {
@@ -369,6 +377,8 @@ const TimelineHeader = ({
                     bgcolor: 'grey.50',
                     display: 'flex',
                     ml: `${chartLeftOffset}px`,
+                    borderLeft: chartLeftOffset > 0 ? 1 : 0,
+                    borderLeftColor: 'divider',
                 }}
             >
                 {dayMarkers.map(({day, dateStr}) => {

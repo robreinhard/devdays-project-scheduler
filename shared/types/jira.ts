@@ -28,6 +28,7 @@ export interface JiraTicket {
   assignee?: string;
   assigneeAvatarUrl?: string; // Profile photo URL from JIRA
   isMissingEstimate: boolean; // True if devDays was defaulted (no estimate in JIRA)
+  sprintIds?: number[];  // Sprint IDs from JIRA (ticket can be in multiple sprints)
 }
 
 export interface JiraSprint {

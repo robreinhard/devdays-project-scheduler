@@ -1,6 +1,27 @@
 import type { JiraEpic, JiraTicket, JiraSprint } from './jira';
 
 /**
+ * Simplified ticket representation for aggregate blocks (Previous/Future)
+ */
+export interface AggregateTicket {
+  key: string;
+  summary: string;
+  status: string;
+  devDays: number;
+}
+
+/**
+ * Aggregate block representing tickets outside the scheduling window
+ * - Previous: Done tickets completed before selected sprints
+ * - Future: TODO tickets that couldn't fit in selected sprints
+ */
+export interface AggregateBlock {
+  type: 'previous' | 'future';
+  tickets: AggregateTicket[];
+  totalDevDays: number;
+}
+
+/**
  * Daily capacity override for PTO tracking
  */
 export interface DailyCapacity {
@@ -49,6 +70,8 @@ export interface ScheduledEpic extends JiraEpic {
   endDay: number;
   startDate: string;     // Actual start date (ISO string)
   endDate: string;       // Actual end date (ISO string) - last day of work
+  previousBlock?: AggregateBlock; // Done tickets completed before selected sprints
+  futureBlock?: AggregateBlock;   // TODO tickets that couldn't fit in selected sprints
 }
 
 /**
@@ -85,4 +108,5 @@ export interface SchedulingInput {
   sprints: JiraSprint[];
   sprintCapacities: SprintCapacity[];
   maxDevelopers: number;  // Points per day capacity (e.g., 5 devs = 5 pts/day)
+  selectedSprintIds?: number[]; // Sprint IDs selected for scheduling (used to determine Previous/Future blocks)
 }

@@ -15,6 +15,7 @@ interface JiraConfig {
   email: string;
   apiToken: string;
   fieldDevDays: string;
+  fieldSprint: string;
   boardId: string;
 }
 
@@ -26,6 +27,7 @@ export const getJiraConfig = (): JiraConfig => {
   const email = process.env.JIRA_EMAIL;
   const apiToken = process.env.JIRA_API_TOKEN;
   const fieldDevDays = process.env.JIRA_FIELD_DEV_DAYS;
+  const fieldSprint = process.env.JIRA_FIELD_SPRINT ?? 'customfield_10020';
   const boardId = process.env.JIRA_BOARD_ID;
 
   if (!baseUrl || !email || !apiToken || !fieldDevDays || !boardId) {
@@ -40,6 +42,7 @@ export const getJiraConfig = (): JiraConfig => {
     email,
     apiToken,
     fieldDevDays,
+    fieldSprint,
     boardId,
   };
 };
@@ -100,6 +103,7 @@ export class JiraClient {
       'labels',
       'issuelinks',
       this.config.fieldDevDays,
+      this.config.fieldSprint,
     ];
 
     const allFields = [...new Set([...defaultFields, ...fields])];
@@ -126,6 +130,7 @@ export class JiraClient {
       'labels',
       'issuelinks',
       this.config.fieldDevDays,
+      this.config.fieldSprint,
     ].join(',');
 
     return this.fetch<JiraIssueResponse>(`/rest/api/3/issue/${issueKey}?fields=${fields}`);
@@ -267,6 +272,7 @@ export class JiraClient {
    */
   getFieldConfig = () => ({
     devDays: this.config.fieldDevDays,
+    sprint: this.config.fieldSprint,
   });
 }
 

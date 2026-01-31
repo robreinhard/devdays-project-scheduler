@@ -17,6 +17,7 @@ import type {
  */
 interface FieldConfig {
   devDays: string;
+  sprint: string;
 }
 
 /**
@@ -89,6 +90,23 @@ const extractBlockedBy = (issuelinks: JiraIssueLink[] = []): string[] => {
 };
 
 /**
+ * Extract sprint IDs from JIRA sprint field
+ * The sprint field can be an array of sprint objects with id property
+ */
+const extractSprintIds = (sprintField: unknown): number[] => {
+  if (!sprintField) return [];
+
+  // JIRA returns sprints as an array of objects with id property
+  if (Array.isArray(sprintField)) {
+    return sprintField
+      .filter((s): s is { id: number } => s && typeof s === 'object' && typeof s.id === 'number')
+      .map((s) => s.id);
+  }
+
+  return [];
+};
+
+/**
  * Map a JIRA issue response to a JiraTicket
  */
 export const mapToTicket = (
@@ -105,6 +123,10 @@ export const mapToTicket = (
   // Extract blocker relationships from issue links
   const blockedBy = extractBlockedBy(issue.fields.issuelinks);
 
+  // Extract sprint IDs from sprint field
+  const sprintField = issue.fields[fieldConfig.sprint];
+  const sprintIds = extractSprintIds(sprintField);
+
   return {
     key: issue.key,
     summary: issue.fields.summary,
@@ -115,6 +137,7 @@ export const mapToTicket = (
     assignee: issue.fields.assignee?.displayName,
     assigneeAvatarUrl: issue.fields.assignee?.avatarUrls?.['24x24'],
     isMissingEstimate: !hasEstimate,
+    sprintIds,
   };
 };
 

@@ -21,6 +21,7 @@ interface TimelineHeaderProps {
     onDailyCapacityChange?: (dayIndex: number, date: string, capacity: number) => void;
     today: string;
     sprintDateOverrides?: SprintDateOverride[];
+    chartLeftOffset?: number;
 }
 
 const TimelineHeader = ({
@@ -31,7 +32,8 @@ const TimelineHeader = ({
                             maxDevelopers,
                             onDailyCapacityChange,
                             today,
-                            sprintDateOverrides = []
+                            sprintDateOverrides = [],
+                            chartLeftOffset = 0
                         }: TimelineHeaderProps) => {
     const startDt = useMemo(() => parseDate(startDate), [startDate]);
 
@@ -46,7 +48,7 @@ const TimelineHeader = ({
             if (sprintDays.length === 0) {
                 const sprintStart = parseDate(sprint.startDate);
                 const startDay = workDaysBetween(startDt, sprintStart);
-                return { sprint, left: startDay * dayWidth, width: 0, startDay, endDay: startDay };
+                return { sprint, left: chartLeftOffset + startDay * dayWidth, width: 0, startDay, endDay: startDay };
             }
 
             const firstDayIndex = sprintDays[0].dayIndex;
@@ -55,13 +57,13 @@ const TimelineHeader = ({
 
             return {
                 sprint,
-                left: firstDayIndex * dayWidth,
+                left: chartLeftOffset + firstDayIndex * dayWidth,
                 width,
                 startDay: firstDayIndex,
                 endDay: lastDayIndex + 1,
             };
         });
-    }, [sprints, dailyCapacities, startDt, dayWidth]);
+    }, [sprints, dailyCapacities, startDt, dayWidth, chartLeftOffset]);
 
     // Generate day markers from dailyCapacities to ensure indices align
     const dayMarkers = useMemo(() => {
@@ -113,19 +115,21 @@ const TimelineHeader = ({
             <Box
                 sx={{
                     height: 24,
-                    position: 'relative',
                     borderBottom: 1,
                     borderColor: 'divider',
                     bgcolor: 'grey.200',
+                    display: 'flex',
+                    ml: `${chartLeftOffset}px`,
+                    borderLeft: chartLeftOffset > 0 ? 1 : 0,
+                    borderLeftColor: 'divider',
                 }}
             >
-                {monthPositions.map(({key, name, startDay, dayCount}) => (
+                {monthPositions.map(({key, name, dayCount}) => (
                     <Box
                         key={key}
                         sx={{
-                            position: 'absolute',
-                            left: startDay * dayWidth,
                             width: dayCount * dayWidth,
+                            minWidth: dayCount * dayWidth,
                             height: '100%',
                             display: 'flex',
                             alignItems: 'center',
@@ -155,13 +159,16 @@ const TimelineHeader = ({
             <Box
                 sx={{
                     height: 30,
-                    position: 'relative',
                     borderBottom: 1,
                     borderColor: 'divider',
                     bgcolor: 'primary.main',
+                    display: 'flex',
+                    ml: `${chartLeftOffset}px`,
+                    borderLeft: chartLeftOffset > 0 ? 1 : 0,
+                    borderLeftColor: 'divider',
                 }}
             >
-                {sprintPositions.map(({sprint, left, width}) => {
+                {sprintPositions.map(({sprint, width}) => {
                     const sprintStartDt = parseDate(sprint.startDate);
                     const sprintEndDt = parseDate(sprint.endDate);
                     const isOverridden = !!getSprintDateOverride(sprint.id, sprintDateOverrides);
@@ -204,9 +211,8 @@ const TimelineHeader = ({
                         <Tooltip key={sprint.id} title={tooltipContent} arrow placement="top">
                             <Box
                                 sx={{
-                                    position: 'absolute',
-                                    left,
                                     width,
+                                    minWidth: width,
                                     height: '100%',
                                     display: 'flex',
                                     alignItems: 'center',
@@ -250,6 +256,9 @@ const TimelineHeader = ({
                     borderColor: 'divider',
                     bgcolor: 'grey.100',
                     display: 'flex',
+                    ml: `${chartLeftOffset}px`,
+                    borderLeft: chartLeftOffset > 0 ? 1 : 0,
+                    borderLeftColor: 'divider',
                 }}
             >
                 {dayMarkers.map(({day, dateStr, dayOfMonth, weekdayAbbrev}) => {
@@ -291,6 +300,9 @@ const TimelineHeader = ({
                     borderColor: 'divider',
                     bgcolor: 'grey.50',
                     display: 'flex',
+                    ml: `${chartLeftOffset}px`,
+                    borderLeft: chartLeftOffset > 0 ? 1 : 0,
+                    borderLeftColor: 'divider',
                 }}
             >
                 {dayMarkers.map(({day, dateStr}) => {
@@ -364,6 +376,9 @@ const TimelineHeader = ({
                     borderColor: 'divider',
                     bgcolor: 'grey.50',
                     display: 'flex',
+                    ml: `${chartLeftOffset}px`,
+                    borderLeft: chartLeftOffset > 0 ? 1 : 0,
+                    borderLeftColor: 'divider',
                 }}
             >
                 {dayMarkers.map(({day, dateStr}) => {

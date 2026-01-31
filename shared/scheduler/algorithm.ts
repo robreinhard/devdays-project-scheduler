@@ -9,6 +9,8 @@ import type {
   DayCapacityInfo,
   GanttData,
   SchedulingInput,
+  AggregateBlock,
+  AggregateTicket,
 } from '@/shared/types';
 import { parseDate, isWeekend } from '@/shared/utils/dates';
 
@@ -100,6 +102,51 @@ const buildDailyCapacityMap = (
   }
 
   return days;
+};
+
+/**
+ * Check if a ticket status indicates it's "done"
+ * Matches: done, resolved, closed (case-insensitive)
+ */
+const isDoneStatus = (status: string): boolean => {
+  const lowerStatus = status.toLowerCase();
+  return lowerStatus.includes('done') ||
+         lowerStatus.includes('resolved') ||
+         lowerStatus.includes('closed');
+};
+
+/**
+ * Check if a ticket is in any of the selected sprints
+ */
+const isInSelectedSprints = (ticket: JiraTicket, selectedSprintIds: number[]): boolean => {
+  if (!ticket.sprintIds || ticket.sprintIds.length === 0) return false;
+  return ticket.sprintIds.some(id => selectedSprintIds.includes(id));
+};
+
+/**
+ * Convert a JiraTicket to an AggregateTicket for Previous/Future blocks
+ */
+const toAggregateTicket = (ticket: JiraTicket): AggregateTicket => ({
+  key: ticket.key,
+  summary: ticket.summary,
+  status: ticket.status,
+  devDays: ticket.devDays,
+});
+
+/**
+ * Create an AggregateBlock from a list of tickets
+ */
+const createAggregateBlock = (
+  type: 'previous' | 'future',
+  tickets: JiraTicket[]
+): AggregateBlock | undefined => {
+  if (tickets.length === 0) return undefined;
+
+  return {
+    type,
+    tickets: tickets.map(toAggregateTicket),
+    totalDevDays: tickets.reduce((sum, t) => sum + t.devDays, 0),
+  };
 };
 
 /**
@@ -367,28 +414,48 @@ const findSlotWithinSprint = (
 };
 
 /**
+ * Result of slotting an epic's tickets
+ */
+interface SlotEpicResult {
+  scheduled: ScheduledTicket[];
+  unslotted: JiraTicket[];
+}
+
+/**
  * Slot an epic's tickets using topological sort with parallel execution
  * Each ticket starts as soon as its specific blockers complete
- * Returns the scheduled tickets
+ * Returns the scheduled tickets and any unslotted tickets (for Future block)
  */
 const slotEpicLinear = (
   epic: JiraEpic,
   tickets: JiraTicket[],
   dailyCapacity: DayCapacity[],
   startDayIndex: number
-): ScheduledTicket[] => {
+): SlotEpicResult => {
   const scheduledTickets: ScheduledTicket[] = [];
+  const unslottedTickets: JiraTicket[] = [];
   const epicTickets = getEpicTicketsTopological(epic.key, tickets);
   const epicTicketKeys = new Set(epicTickets.map(t => t.key));
 
   // Track end days for each scheduled ticket (for dependency resolution)
   const ticketEndDays = new Map<string, number>();
+  // Track which tickets couldn't be scheduled (their dependents also can't be scheduled)
+  const unslottedKeys = new Set<string>();
 
   // Process tickets in topological order (dependencies always come first)
   for (const ticket of epicTickets) {
+    // Check if any blocker is unslotted - if so, this ticket is also unslotted
+    const blockedBy = ticket.blockedBy ?? [];
+    const hasUnslottedBlocker = blockedBy.some(key => unslottedKeys.has(key));
+
+    if (hasUnslottedBlocker) {
+      unslottedTickets.push(ticket);
+      unslottedKeys.add(ticket.key);
+      continue;
+    }
+
     // Calculate earliest start based on blockers
     let earliestStart = startDayIndex;
-    const blockedBy = ticket.blockedBy ?? [];
     for (const blockerKey of blockedBy) {
       if (epicTicketKeys.has(blockerKey)) {
         const blockerEndDay = ticketEndDays.get(blockerKey);
@@ -402,8 +469,10 @@ const slotEpicLinear = (
     const slotStartDay = findSlotWithinSprint(earliestStart, ticket.devDays, dailyCapacity);
 
     if (slotStartDay < 0) {
-      // No valid slot found - skip remaining tickets
-      break;
+      // No valid slot found - add to unslotted
+      unslottedTickets.push(ticket);
+      unslottedKeys.add(ticket.key);
+      continue;
     }
 
     const startDay = slotStartDay;
@@ -448,7 +517,7 @@ const slotEpicLinear = (
     });
   }
 
-  return scheduledTickets;
+  return { scheduled: scheduledTickets, unslotted: unslottedTickets };
 };
 
 /**
@@ -496,11 +565,45 @@ const findNextAvailableSlot = (
 };
 
 /**
+ * Partition epic tickets into previous (done outside selected sprints),
+ * schedulable, and track unslotted for future block
+ */
+interface PartitionedTickets {
+  previous: JiraTicket[];
+  schedulable: JiraTicket[];
+}
+
+const partitionEpicTickets = (
+  epicKey: string,
+  allTickets: JiraTicket[],
+  selectedSprintIds: number[]
+): PartitionedTickets => {
+  const epicTickets = allTickets.filter(t => t.epicKey === epicKey);
+  const previous: JiraTicket[] = [];
+  const schedulable: JiraTicket[] = [];
+
+  for (const ticket of epicTickets) {
+    const isDone = isDoneStatus(ticket.status);
+    const inSelectedSprint = isInSelectedSprints(ticket, selectedSprintIds);
+
+    // Previous block: Done tickets NOT in selected sprints (includes unassigned Done tickets)
+    if (isDone && !inSelectedSprint) {
+      previous.push(ticket);
+    } else {
+      // Everything else goes to schedulable (including Done tickets IN selected sprints)
+      schedulable.push(ticket);
+    }
+  }
+
+  return { previous, schedulable };
+};
+
+/**
  * Main scheduling algorithm
  * Slots tickets into sprints while respecting capacity and sprint boundaries
  */
 export const scheduleTickets = (input: SchedulingInput): GanttData => {
-  const { epics, tickets, sprints, sprintCapacities, maxDevelopers } = input;
+  const { epics, tickets, sprints, sprintCapacities, maxDevelopers, selectedSprintIds } = input;
 
   // Validate: Check for tickets > 10 points
   const oversizedTickets = tickets.filter(t => t.devDays > 10);
@@ -527,6 +630,9 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
   if (sprintsWithCapacity.length === 0) {
     throw new Error('No valid sprints with capacity found');
   }
+
+  // Compute selected sprint IDs (use provided or fall back to sprints with capacity)
+  const effectiveSelectedSprintIds = selectedSprintIds ?? sprintsWithCapacity.map(s => s.id);
 
   // Project start date is first sprint start
   const projectStartDate = parseDate(sprintsWithCapacity[0].startDate);
@@ -561,22 +667,33 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
   const sortedCommits = sortEpics(commitEpics, worstCaseMap);
   const sortedStretch = sortEpics(stretchEpics, worstCaseMap);
 
-  // Track all scheduled tickets
+  // Track all scheduled tickets and blocks per epic
   const allScheduledTickets: ScheduledTicket[] = [];
+  const epicPreviousBlocks = new Map<string, AggregateBlock | undefined>();
+  const epicFutureBlocks = new Map<string, AggregateBlock | undefined>();
 
   // Track the next available start day for linear slotting
   let nextLinearStartDay = 0;
 
   // Slot commit epics first (linear scheduling)
   for (const epic of sortedCommits) {
-    const scheduled = slotEpicLinear(
+    // Partition tickets for this epic
+    const { previous, schedulable } = partitionEpicTickets(epic.key, tickets, effectiveSelectedSprintIds);
+
+    // Store previous block
+    epicPreviousBlocks.set(epic.key, createAggregateBlock('previous', previous));
+
+    const { scheduled, unslotted } = slotEpicLinear(
       epic,
-      tickets,
+      schedulable,
       dailyCapacity,
       nextLinearStartDay
     );
 
     allScheduledTickets.push(...scheduled);
+
+    // Store future block from unslotted tickets
+    epicFutureBlocks.set(epic.key, createAggregateBlock('future', unslotted));
 
     // Update next linear start day to after this epic's last ticket
     if (scheduled.length > 0) {
@@ -587,17 +704,35 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
 
   // Slot stretch epics (fill gaps with available capacity, respecting dependencies)
   for (const epic of sortedStretch) {
-    const epicTickets = getEpicTicketsTopological(epic.key, tickets);
+    // Partition tickets for this epic
+    const { previous, schedulable } = partitionEpicTickets(epic.key, tickets, effectiveSelectedSprintIds);
+
+    // Store previous block
+    epicPreviousBlocks.set(epic.key, createAggregateBlock('previous', previous));
+
+    const epicTickets = getEpicTicketsTopological(epic.key, schedulable);
     const epicTicketKeys = new Set(epicTickets.map(t => t.key));
 
     // Track end days for each scheduled ticket (for dependency resolution)
     const ticketEndDays = new Map<string, number>();
+    // Track unslotted tickets
+    const unslottedTickets: JiraTicket[] = [];
+    const unslottedKeys = new Set<string>();
 
     // Process tickets in topological order
     for (const ticket of epicTickets) {
+      // Check if any blocker is unslotted
+      const blockedBy = ticket.blockedBy ?? [];
+      const hasUnslottedBlocker = blockedBy.some(key => unslottedKeys.has(key));
+
+      if (hasUnslottedBlocker) {
+        unslottedTickets.push(ticket);
+        unslottedKeys.add(ticket.key);
+        continue;
+      }
+
       // Calculate earliest start based on blockers
       let earliestStart = 0;
-      const blockedBy = ticket.blockedBy ?? [];
       for (const blockerKey of blockedBy) {
         if (epicTicketKeys.has(blockerKey)) {
           const blockerEndDay = ticketEndDays.get(blockerKey);
@@ -615,8 +750,10 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
       );
 
       if (startDayIndex >= dailyCapacity.length) {
-        // No slot found - skip remaining tickets in this epic
-        break;
+        // No slot found - add to unslotted
+        unslottedTickets.push(ticket);
+        unslottedKeys.add(ticket.key);
+        continue;
       }
 
       const endDay = startDayIndex + ticket.devDays;
@@ -642,6 +779,9 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
         isOnCriticalPath: false,
       });
     }
+
+    // Store future block from unslotted tickets
+    epicFutureBlocks.set(epic.key, createAggregateBlock('future', unslottedTickets));
   }
 
   // Calculate total dev days
@@ -725,6 +865,8 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
       endDay: epicEndDay,
       startDate: getDateFromDayIndex(epicStartDay, dailyCapacity),
       endDate: getEndDateFromDayIndex(epicEndDay, dailyCapacity),
+      previousBlock: epicPreviousBlocks.get(epic.key),
+      futureBlock: epicFutureBlocks.get(epic.key),
     };
   });
 

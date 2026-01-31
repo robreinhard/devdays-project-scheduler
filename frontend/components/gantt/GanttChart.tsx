@@ -38,6 +38,8 @@ const DAY_WIDTH = 30;
 const ROW_HEIGHT = 40;
 // Width of the left labels column
 const LABEL_WIDTH = 280;
+// Width of Previous/Future blocks in days
+const BLOCK_WIDTH_DAYS = 3;
 
 const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange, sprintDateOverrides = [] }: GanttChartProps) => {
   const { epics, sprints, dailyCapacities, projectStartDate, totalDays } = data;
@@ -82,10 +84,26 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange, sprintDateOver
     return Math.max(totalDays, workDays);
   }, [sprints, projectStartDate, totalDays]);
 
-  // Calculate chart dimensions
+  // Check if any epic has a Previous block (to add left offset)
+  const hasPreviousBlocks = useMemo(() => {
+    return epics.some(epic => epic.previousBlock);
+  }, [epics]);
+
+  // Check if any epic has a Future block (to add right space)
+  const hasFutureBlocks = useMemo(() => {
+    return epics.some(epic => epic.futureBlock);
+  }, [epics]);
+
+  // Calculate left offset for Previous blocks
+  const previousBlockOffset = hasPreviousBlocks ? BLOCK_WIDTH_DAYS * DAY_WIDTH : 0;
+
+  // Calculate right space for Future blocks
+  const futureBlockSpace = hasFutureBlocks ? BLOCK_WIDTH_DAYS * DAY_WIDTH : 0;
+
+  // Calculate chart dimensions (include offset and future block space)
   const chartWidth = useMemo(() => {
-    return Math.max(totalDisplayDays * DAY_WIDTH, 800);
-  }, [totalDisplayDays]);
+    return Math.max(previousBlockOffset + totalDisplayDays * DAY_WIDTH + futureBlockSpace, 800);
+  }, [totalDisplayDays, previousBlockOffset, futureBlockSpace]);
 
   return (
     <Paper elevation={0} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -146,6 +164,7 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange, sprintDateOver
                 expanded={expandedEpics[epic.key] ?? true}
                 onToggleExpanded={() => toggleEpicExpanded(epic.key)}
                 epicColor={getEpicColor(index)}
+                totalDays={totalDisplayDays}
               />
             ))}
           </Box>
@@ -162,6 +181,7 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange, sprintDateOver
               onDailyCapacityChange={onDailyCapacityChange}
               today={today}
               sprintDateOverrides={sprintDateOverrides}
+              chartLeftOffset={previousBlockOffset}
             />
 
             {/* Epic rows with ticket bars */}
@@ -172,6 +192,8 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange, sprintDateOver
                 expandedEpics={expandedEpics}
                 dayWidth={DAY_WIDTH}
                 rowHeight={ROW_HEIGHT}
+                totalDays={totalDisplayDays}
+                chartLeftOffset={previousBlockOffset}
               />
 
               {/* Epic rows */}
@@ -187,6 +209,8 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange, sprintDateOver
                   epicColor={getEpicColor(index)}
                   today={today}
                   dailyCapacities={dailyCapacities}
+                  totalDays={totalDisplayDays}
+                  chartLeftOffset={previousBlockOffset}
                 />
               ))}
             </Box>

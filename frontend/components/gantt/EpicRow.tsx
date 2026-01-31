@@ -14,6 +14,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import type { ScheduledEpic, ScheduledTicket, DayCapacityInfo } from '@/shared/types';
 import { parseDate } from '@/shared/utils/dates';
 import TicketBar from './TicketBar';
+import AggregateBlockBar from './AggregateBlockBar';
 
 // JIRA base URL from environment
 const JIRA_BASE_URL = process.env.NEXT_PUBLIC_JIRA_BASE_URL || '';
@@ -48,6 +49,8 @@ interface EpicRowProps {
   epicColor: string;
   today?: string;
   dailyCapacities?: DayCapacityInfo[];
+  totalDays: number;
+  chartLeftOffset?: number; // Offset for Previous blocks
 }
 
 const EpicRow = ({
@@ -61,6 +64,8 @@ const EpicRow = ({
   epicColor,
   today,
   dailyCapacities,
+  totalDays,
+  chartLeftOffset = 0,
 }: EpicRowProps) => {
   // Sort tickets by topological level, then by critical path weight (descending)
   const sortedTickets = useMemo(() => {
@@ -74,8 +79,8 @@ const EpicRow = ({
     });
   }, [epic.tickets]);
 
-  // Epic summary bar dimensions
-  const epicLeft = epic.startDay * dayWidth;
+  // Epic summary bar dimensions (offset by chartLeftOffset)
+  const epicLeft = chartLeftOffset + epic.startDay * dayWidth;
   const epicWidth = (epic.endDay - epic.startDay) * dayWidth;
 
   const epicUrl = getJiraUrl(epic.key);
@@ -89,7 +94,7 @@ const EpicRow = ({
       sx={{
         position: 'absolute',
         top: 0,
-        left: 0,
+        left: chartLeftOffset,
         right: 0,
         height,
         display: 'flex',
@@ -156,8 +161,33 @@ const EpicRow = ({
           </Box>
         </Box>
 
-        {/* Ticket labels */}
+        {/* Expanded content: Previous block, tickets, Future block */}
         <Collapse in={expanded}>
+          {/* Previous block label */}
+          {epic.previousBlock && (
+            <Box
+              sx={{
+                minHeight: rowHeight,
+                display: 'flex',
+                alignItems: 'center',
+                pl: 2,
+                pr: 1,
+                py: 0.5,
+                borderBottom: 1,
+                borderColor: 'divider',
+                bgcolor: 'rgba(0,0,0,0.04)',
+              }}
+            >
+              <Box sx={{ fontSize: 11, color: 'text.secondary' }}>
+                <Typography component="span" sx={{ fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase' }}>
+                  Previous
+                </Typography>
+                {' '}| {epic.previousBlock.tickets.length} tickets | {epic.previousBlock.totalDevDays} dev days
+              </Box>
+            </Box>
+          )}
+
+          {/* Ticket labels */}
           {sortedTickets.map((ticket) => {
             const ticketUrl = getJiraUrl(ticket.key);
             // Check if ticket should be finished by now based on endDate
@@ -234,6 +264,30 @@ const EpicRow = ({
               </Box>
             );
           })}
+
+          {/* Future block label */}
+          {epic.futureBlock && (
+            <Box
+              sx={{
+                minHeight: rowHeight,
+                display: 'flex',
+                alignItems: 'center',
+                pl: 2,
+                pr: 1,
+                py: 0.5,
+                borderBottom: 1,
+                borderColor: 'divider',
+                bgcolor: 'rgba(0,0,0,0.04)',
+              }}
+            >
+              <Box sx={{ fontSize: 11, color: 'text.secondary' }}>
+                <Typography component="span" sx={{ fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase' }}>
+                  Future
+                </Typography>
+                {' '}| {epic.futureBlock.tickets.length} tickets | {epic.futureBlock.totalDevDays} dev days
+              </Box>
+            </Box>
+          )}
         </Collapse>
       </Box>
     );
@@ -299,8 +353,32 @@ const EpicRow = ({
         </Tooltip>
       </Box>
 
-      {/* Ticket bars */}
+      {/* Expanded content: Previous block, tickets, Future block */}
       <Collapse in={expanded}>
+        {/* Previous block bar */}
+        {epic.previousBlock && (
+          <Box
+            sx={{
+              minHeight: rowHeight,
+              height: rowHeight,
+              position: 'relative',
+              borderBottom: 1,
+              borderColor: 'divider',
+            }}
+          >
+            <DayBackgroundGrid height={rowHeight} />
+            <AggregateBlockBar
+              block={epic.previousBlock}
+              dayWidth={dayWidth}
+              rowHeight={rowHeight}
+              epicColor={epicColor}
+              totalDays={totalDays}
+              chartLeftOffset={chartLeftOffset}
+            />
+          </Box>
+        )}
+
+        {/* Ticket bars */}
         {sortedTickets.map((ticket) => (
           <Box
             key={ticket.key}
@@ -318,9 +396,33 @@ const EpicRow = ({
               dayWidth={dayWidth}
               rowHeight={rowHeight}
               epicColor={epicColor}
+              chartLeftOffset={chartLeftOffset}
             />
           </Box>
         ))}
+
+        {/* Future block bar */}
+        {epic.futureBlock && (
+          <Box
+            sx={{
+              minHeight: rowHeight,
+              height: rowHeight,
+              position: 'relative',
+              borderBottom: 1,
+              borderColor: 'divider',
+            }}
+          >
+            <DayBackgroundGrid height={rowHeight} />
+            <AggregateBlockBar
+              block={epic.futureBlock}
+              dayWidth={dayWidth}
+              rowHeight={rowHeight}
+              epicColor={epicColor}
+              totalDays={totalDays}
+              chartLeftOffset={chartLeftOffset}
+            />
+          </Box>
+        )}
       </Collapse>
     </Box>
   );

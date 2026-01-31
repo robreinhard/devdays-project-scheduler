@@ -491,9 +491,9 @@ const SprintCapacityEditor = ({
           />
         )}
         renderOption={(props, option) => {
-          const { key, ...restProps } = props;
+          const { key: _key, ...restProps } = props;
           return (
-            <Box component="li" key={key} {...restProps}>
+            <Box component="li" key={option.id} {...restProps}>
               <Box>
                 <Typography variant="body2">{option.name}</Typography>
                 {option.startDate && option.endDate && (

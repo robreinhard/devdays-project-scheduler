@@ -337,6 +337,18 @@ const EpicRow = ({
           bgcolor: epicColor,
         }}
       >
+        {/* Previous block indicator on epic row */}
+        {epic.previousBlock && (
+          <AggregateBlockBar
+            block={epic.previousBlock}
+            dayWidth={dayWidth}
+            rowHeight={rowHeight}
+            epicColor="#000"
+            totalDays={totalDays}
+            chartLeftOffset={chartLeftOffset}
+          />
+        )}
+
         <Tooltip
           title={epicTooltipContent}
           arrow
@@ -361,6 +373,18 @@ const EpicRow = ({
             }}
           />
         </Tooltip>
+
+        {/* Future block indicator on epic row */}
+        {epic.futureBlock && (
+          <AggregateBlockBar
+            block={epic.futureBlock}
+            dayWidth={dayWidth}
+            rowHeight={rowHeight}
+            epicColor="#000"
+            totalDays={totalDays}
+            chartLeftOffset={chartLeftOffset}
+          />
+        )}
       </Box>
 
       {/* Expanded content: Previous block, tickets, Future block */}

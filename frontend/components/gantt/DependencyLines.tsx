@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import type { ScheduledEpic, ScheduledTicket } from '@/shared/types';
 
@@ -358,6 +358,8 @@ const DependencyLines = ({
     return maxRight + 50; // Add some padding
   }, [ticketPositions]);
 
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
   if (connections.length === 0) {
     return null;
   }
@@ -380,7 +382,11 @@ const DependencyLines = ({
         style={{ position: 'absolute', top: 0, left: 0 }}
       >
         <defs>
-          {/* Arrowhead marker */}
+          {/* Drop shadow filter for hover state */}
+          <filter id="dropShadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="1" dy="1" stdDeviation="2" floodColor="#000" floodOpacity="0.3" />
+          </filter>
+          {/* Arrowhead marker - default gray */}
           <marker
             id="arrowhead"
             markerWidth="8"
@@ -391,6 +397,18 @@ const DependencyLines = ({
             markerUnits="strokeWidth"
           >
             <polygon points="0 0, 8 3, 0 6" fill="#888" />
+          </marker>
+          {/* Arrowhead marker - hover black */}
+          <marker
+            id="arrowhead-hover"
+            markerWidth="8"
+            markerHeight="6"
+            refX="8"
+            refY="3"
+            orient="auto"
+            markerUnits="strokeWidth"
+          >
+            <polygon points="0 0, 8 3, 0 6" fill="#000" />
           </marker>
         </defs>
 
@@ -403,16 +421,35 @@ const DependencyLines = ({
             dayWidth
           );
 
+          const isHovered = hoveredIndex === index;
+
           return (
-            <path
-              key={`dep-${conn.from.key}-${conn.to.key}-${index}`}
-              d={path}
-              fill="none"
-              stroke="#888"
-              strokeWidth={1.5}
-              markerEnd="url(#arrowhead)"
-              opacity={0.6}
-            />
+            <g key={`dep-${conn.from.key}-${conn.to.key}-${index}`}>
+              {/* Invisible wider hit area for easier hovering */}
+              <path
+                d={path}
+                fill="none"
+                stroke="transparent"
+                strokeWidth={12}
+                style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                onMouseEnter={() => setHoveredIndex(index)}
+                onMouseLeave={() => setHoveredIndex(null)}
+              />
+              {/* Visible line */}
+              <path
+                d={path}
+                fill="none"
+                stroke={isHovered ? '#000' : '#888'}
+                strokeWidth={isHovered ? 2 : 1.5}
+                markerEnd={isHovered ? 'url(#arrowhead-hover)' : 'url(#arrowhead)'}
+                opacity={isHovered ? 1 : 0.6}
+                filter={isHovered ? 'url(#dropShadow)' : undefined}
+                style={{
+                  pointerEvents: 'none',
+                  transition: 'stroke 0.1s, stroke-width 0.1s, opacity 0.1s, filter 0.1s',
+                }}
+              />
+            </g>
           );
         })}
       </svg>

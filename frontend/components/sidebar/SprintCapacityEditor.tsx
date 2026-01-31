@@ -331,11 +331,7 @@ const SprintCapacityEditor = ({
         const sprintsWithDates = (data.sprints || []).filter(
           (sprint: JiraSprint) => sprint.startDate && sprint.endDate
         );
-        // Filter out already selected sprints from dropdown options
-        const availableSprints = sprintsWithDates.filter(
-          (sprint: JiraSprint) => !selectedSprintIds.includes(sprint.id)
-        );
-        setOptions(availableSprints);
+        setOptions(sprintsWithDates);
 
         // Cache all sprints we receive
         setSelectedSprintsCache((prev) => {
@@ -355,10 +351,15 @@ const SprintCapacityEditor = ({
     } finally {
       setLoading(false);
     }
-  }, [boardId, selectedSprintIds]);
+  }, [boardId]);
 
   // Debounced input change handler
-  const handleInputChange = useCallback((_event: React.SyntheticEvent, value: string) => {
+  const handleInputChange = useCallback((_event: React.SyntheticEvent, value: string, reason: string) => {
+    // Only update input value and fetch on actual user input, not on selection changes ("reset") or blur ("clear")
+    if (reason !== 'input') {
+      return;
+    }
+
     setInputValue(value);
 
     if (debounceTimerRef.current) {
@@ -413,25 +414,29 @@ const SprintCapacityEditor = ({
     onOverlapError?.(overlaps.length > 0);
   }, [overlaps.length, onOverlapError]);
 
-  // Handle sprint selection from dropdown
-  const handleSelect = useCallback((_event: React.SyntheticEvent, value: JiraSprint | null) => {
-    if (value) {
-      // Cache the sprint
-      setSelectedSprintsCache((prev) => {
-        const newCache = new Map(prev);
-        newCache.set(value.id, value);
-        return newCache;
-      });
-      // Add to selected capacities
-      onChange([
-        ...sprintCapacities,
-        { sprintId: value.id, devDaysCapacity: defaultCapacity },
-      ]);
-      // Clear input and refresh options
-      setInputValue('');
-      fetchSprints('');
-    }
-  }, [onChange, sprintCapacities, defaultCapacity, fetchSprints]);
+  // Handle sprint selection from dropdown (multi-select)
+  const handleSelect = useCallback((_event: React.SyntheticEvent, values: JiraSprint[]) => {
+    // Cache all selected sprints
+    setSelectedSprintsCache((prev) => {
+      const newCache = new Map(prev);
+      for (const sprint of values) {
+        newCache.set(sprint.id, sprint);
+      }
+      return newCache;
+    });
+
+    // Build new capacities list - keep existing capacities for sprints still selected
+    const newSprintIds = new Set(values.map(v => v.id));
+    const existingCapacities = sprintCapacities.filter(sc => newSprintIds.has(sc.sprintId));
+    const existingIds = new Set(existingCapacities.map(sc => sc.sprintId));
+
+    // Add new sprints with default capacity
+    const newCapacities = values
+      .filter(v => !existingIds.has(v.id))
+      .map(v => ({ sprintId: v.id, devDaysCapacity: defaultCapacity }));
+
+    onChange([...existingCapacities, ...newCapacities]);
+  }, [onChange, sprintCapacities, defaultCapacity]);
 
   // Handle removing a selected sprint
   const handleRemove = useCallback((sprintId: number) => {
@@ -451,23 +456,25 @@ const SprintCapacityEditor = ({
   return (
     <Box>
       <Autocomplete
+        multiple
         open={open}
         onOpen={handleOpen}
         onClose={handleClose}
         options={options}
         loading={loading}
-        value={null}
+        value={selectedSprintsOriginal}
         inputValue={inputValue}
         onInputChange={handleInputChange}
         onChange={handleSelect}
         getOptionLabel={(option) => option.name}
         isOptionEqualToValue={(option, value) => option.id === value.id}
         filterOptions={(x) => x}
+        disableCloseOnSelect
         noOptionsText={error || (inputValue.length === 0 ? 'Type to search sprints...' : 'No sprints found')}
         renderInput={(params) => (
           <TextField
             {...params}
-            placeholder="Search sprints..."
+            placeholder={selectedSprintsOriginal.length === 0 ? "Search sprints..." : "Add more sprints..."}
             size="small"
             error={!!error}
             slotProps={{
@@ -484,9 +491,9 @@ const SprintCapacityEditor = ({
           />
         )}
         renderOption={(props, option) => {
-          const { key, ...restProps } = props;
+          const { key: _key, ...restProps } = props;
           return (
-            <Box component="li" key={key} {...restProps}>
+            <Box component="li" key={option.id} {...restProps}>
               <Box>
                 <Typography variant="body2">{option.name}</Typography>
                 {option.startDate && option.endDate && (
@@ -498,6 +505,7 @@ const SprintCapacityEditor = ({
             </Box>
           );
         }}
+        renderTags={() => null}
         sx={{ mb: 1 }}
       />
 

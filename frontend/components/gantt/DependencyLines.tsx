@@ -9,6 +9,8 @@ interface DependencyLinesProps {
   expandedEpics: Record<string, boolean>;
   dayWidth: number;
   rowHeight: number;
+  totalDays: number;
+  chartLeftOffset?: number;
 }
 
 interface TicketPosition {
@@ -18,6 +20,9 @@ interface TicketPosition {
   centerY: number;
   blockedBy: string[];
 }
+
+// Block width in days (must match AggregateBlockBar)
+const BLOCK_WIDTH_DAYS = 3;
 
 /**
  * Generate an SVG path for a stepped dependency line with curved corners
@@ -180,11 +185,25 @@ const DependencyLines = ({
   expandedEpics,
   dayWidth,
   rowHeight,
+  totalDays,
+  chartLeftOffset = 0,
 }: DependencyLinesProps) => {
   // Calculate all ticket positions and dependency connections
   const { ticketPositions, connections, svgHeight } = useMemo(() => {
     const positions: Map<string, TicketPosition> = new Map();
     const conns: { from: TicketPosition; to: TicketPosition }[] = [];
+
+    // Track which ticket keys are in Previous blocks (for dependency resolution)
+    const previousBlockTicketKeys = new Map<string, string>(); // ticketKey -> epicKey
+
+    // First pass: collect all Previous block ticket keys
+    for (const epic of epics) {
+      if (epic.previousBlock) {
+        for (const ticket of epic.previousBlock.tickets) {
+          previousBlockTicketKeys.set(ticket.key, epic.key);
+        }
+      }
+    }
 
     // Calculate Y offset for each ticket row
     let currentY = 0;
@@ -193,8 +212,27 @@ const DependencyLines = ({
       // Epic summary row
       currentY += rowHeight;
 
-      // If epic is expanded, add ticket rows
+      // If epic is expanded, add rows for Previous block, tickets, and Future block
       if (expandedEpics[epic.key] ?? true) {
+        // Previous block row (if exists)
+        if (epic.previousBlock) {
+          const prevBlockWidth = BLOCK_WIDTH_DAYS * dayWidth;
+          const prevBlockLeft = 0; // At start of chart area
+          const centerY = currentY + rowHeight / 2;
+
+          // Use synthetic key for Previous block: PREV:{epicKey}
+          const prevBlockKey = `PREV:${epic.key}`;
+          positions.set(prevBlockKey, {
+            key: prevBlockKey,
+            left: prevBlockLeft,
+            right: prevBlockLeft + prevBlockWidth,
+            centerY,
+            blockedBy: [],
+          });
+
+          currentY += rowHeight;
+        }
+
         // Sort tickets same way as EpicRow does
         const sortedTickets = [...epic.tickets].sort((a: ScheduledTicket, b: ScheduledTicket) => {
           if (a.parallelGroup !== b.parallelGroup) {
@@ -204,8 +242,8 @@ const DependencyLines = ({
         });
 
         for (const ticket of sortedTickets) {
-          const left = ticket.startDay * dayWidth;
-          const right = ticket.endDay * dayWidth;
+          const left = chartLeftOffset + ticket.startDay * dayWidth;
+          const right = chartLeftOffset + ticket.endDay * dayWidth;
           const centerY = currentY + rowHeight / 2;
 
           positions.set(ticket.key, {
@@ -218,18 +256,86 @@ const DependencyLines = ({
 
           currentY += rowHeight;
         }
+
+        // Future block row (if exists)
+        if (epic.futureBlock) {
+          const futureBlockWidth = BLOCK_WIDTH_DAYS * dayWidth;
+          const futureBlockLeft = chartLeftOffset + totalDays * dayWidth;
+          const centerY = currentY + rowHeight / 2;
+
+          // Use synthetic key for Future block: FUTURE:{epicKey}
+          const futureBlockKey = `FUTURE:${epic.key}`;
+          positions.set(futureBlockKey, {
+            key: futureBlockKey,
+            left: futureBlockLeft,
+            right: futureBlockLeft + futureBlockWidth,
+            centerY,
+            blockedBy: [],
+          });
+
+          currentY += rowHeight;
+        }
       }
     }
 
     // Build connections based on blockedBy relationships
     for (const [, ticketPos] of positions) {
+      // Skip synthetic block entries (they don't have blockers themselves)
+      if (ticketPos.key.startsWith('PREV:') || ticketPos.key.startsWith('FUTURE:')) continue;
+
       for (const blockerKey of ticketPos.blockedBy) {
+        // Check if blocker is in positions (scheduled ticket)
         const blockerPos = positions.get(blockerKey);
         if (blockerPos) {
           conns.push({
             from: blockerPos,
             to: ticketPos,
           });
+        } else {
+          // Check if blocker is in a Previous block
+          const blockerEpicKey = previousBlockTicketKeys.get(blockerKey);
+          if (blockerEpicKey) {
+            // Draw line from that epic's Previous block
+            const prevBlockPos = positions.get(`PREV:${blockerEpicKey}`);
+            if (prevBlockPos) {
+              conns.push({
+                from: prevBlockPos,
+                to: ticketPos,
+              });
+            }
+          }
+          // Check if blocker is in a Future block (shouldn't happen - future can't block scheduled)
+        }
+      }
+    }
+
+    // Build connections FROM scheduled tickets TO Future blocks
+    // A scheduled ticket connects to Future block if any Future ticket lists it as a blocker
+    for (const epic of epics) {
+      if (!epic.futureBlock || !(expandedEpics[epic.key] ?? true)) continue;
+
+      const futureBlockPos = positions.get(`FUTURE:${epic.key}`);
+      if (!futureBlockPos) continue;
+
+      // Check each future ticket's blockedBy (from the aggregate data)
+      // Since AggregateTicket doesn't have blockedBy, we need to check if any scheduled ticket
+      // would naturally block future tickets based on the dependency chain
+      // For now, we'll draw a line if the last scheduled ticket in the epic leads to future work
+      const scheduledTickets = epic.tickets;
+      if (scheduledTickets.length > 0) {
+        // Find the ticket(s) with the highest endDay - these are the "last" tickets
+        const maxEndDay = Math.max(...scheduledTickets.map(t => t.endDay));
+        const lastTickets = scheduledTickets.filter(t => t.endDay === maxEndDay);
+
+        // Draw lines from the last scheduled tickets to the Future block
+        for (const lastTicket of lastTickets) {
+          const lastTicketPos = positions.get(lastTicket.key);
+          if (lastTicketPos) {
+            conns.push({
+              from: lastTicketPos,
+              to: futureBlockPos,
+            });
+          }
         }
       }
     }
@@ -239,7 +345,7 @@ const DependencyLines = ({
       connections: conns,
       svgHeight: currentY,
     };
-  }, [epics, expandedEpics, dayWidth, rowHeight]);
+  }, [epics, expandedEpics, dayWidth, rowHeight, totalDays, chartLeftOffset]);
 
   // Calculate SVG width based on the rightmost ticket
   const svgWidth = useMemo(() => {

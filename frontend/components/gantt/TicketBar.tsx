@@ -13,6 +13,7 @@ interface TicketBarProps {
     dayWidth: number;
     rowHeight: number;
     epicColor: string;
+    chartLeftOffset?: number;
 }
 
 /**
@@ -52,10 +53,10 @@ const getTicketColor = (ticket: ScheduledTicket, epicColor: string): string => {
     return darkenColor(epicColor, 10);
 };
 
-const TicketBar = ({ticket, dayWidth, rowHeight, epicColor}: TicketBarProps) => {
+const TicketBar = ({ticket, dayWidth, rowHeight, epicColor, chartLeftOffset = 0}: TicketBarProps) => {
     const [tooltipOpen, setTooltipOpen] = useState(false);
 
-    const left = ticket.startDay * dayWidth;
+    const left = chartLeftOffset + ticket.startDay * dayWidth;
     const width = Math.max((ticket.endDay - ticket.startDay) * dayWidth, 20);
     // Get color based on ticket status (gold for missing estimate)
     const color = getTicketColor(ticket, epicColor);

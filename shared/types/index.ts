@@ -16,6 +16,8 @@ export type {
 
 // Scheduling types
 export type {
+  AggregateTicket,
+  AggregateBlock,
   DailyCapacity,
   DayCapacityInfo,
   SprintCapacity,

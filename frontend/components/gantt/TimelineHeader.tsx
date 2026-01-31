@@ -21,6 +21,7 @@ interface TimelineHeaderProps {
     onDailyCapacityChange?: (dayIndex: number, date: string, capacity: number) => void;
     today: string;
     sprintDateOverrides?: SprintDateOverride[];
+    chartLeftOffset?: number;
 }
 
 const TimelineHeader = ({
@@ -31,7 +32,8 @@ const TimelineHeader = ({
                             maxDevelopers,
                             onDailyCapacityChange,
                             today,
-                            sprintDateOverrides = []
+                            sprintDateOverrides = [],
+                            chartLeftOffset = 0
                         }: TimelineHeaderProps) => {
     const startDt = useMemo(() => parseDate(startDate), [startDate]);
 
@@ -46,7 +48,7 @@ const TimelineHeader = ({
             if (sprintDays.length === 0) {
                 const sprintStart = parseDate(sprint.startDate);
                 const startDay = workDaysBetween(startDt, sprintStart);
-                return { sprint, left: startDay * dayWidth, width: 0, startDay, endDay: startDay };
+                return { sprint, left: chartLeftOffset + startDay * dayWidth, width: 0, startDay, endDay: startDay };
             }
 
             const firstDayIndex = sprintDays[0].dayIndex;
@@ -55,13 +57,13 @@ const TimelineHeader = ({
 
             return {
                 sprint,
-                left: firstDayIndex * dayWidth,
+                left: chartLeftOffset + firstDayIndex * dayWidth,
                 width,
                 startDay: firstDayIndex,
                 endDay: lastDayIndex + 1,
             };
         });
-    }, [sprints, dailyCapacities, startDt, dayWidth]);
+    }, [sprints, dailyCapacities, startDt, dayWidth, chartLeftOffset]);
 
     // Generate day markers from dailyCapacities to ensure indices align
     const dayMarkers = useMemo(() => {
@@ -124,7 +126,7 @@ const TimelineHeader = ({
                         key={key}
                         sx={{
                             position: 'absolute',
-                            left: startDay * dayWidth,
+                            left: chartLeftOffset + startDay * dayWidth,
                             width: dayCount * dayWidth,
                             height: '100%',
                             display: 'flex',
@@ -250,6 +252,7 @@ const TimelineHeader = ({
                     borderColor: 'divider',
                     bgcolor: 'grey.100',
                     display: 'flex',
+                    ml: `${chartLeftOffset}px`,
                 }}
             >
                 {dayMarkers.map(({day, dateStr, dayOfMonth, weekdayAbbrev}) => {
@@ -291,6 +294,7 @@ const TimelineHeader = ({
                     borderColor: 'divider',
                     bgcolor: 'grey.50',
                     display: 'flex',
+                    ml: `${chartLeftOffset}px`,
                 }}
             >
                 {dayMarkers.map(({day, dateStr}) => {
@@ -364,6 +368,7 @@ const TimelineHeader = ({
                     borderColor: 'divider',
                     bgcolor: 'grey.50',
                     display: 'flex',
+                    ml: `${chartLeftOffset}px`,
                 }}
             >
                 {dayMarkers.map(({day, dateStr}) => {

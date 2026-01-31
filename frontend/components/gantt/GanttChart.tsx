@@ -150,7 +150,16 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange, sprintDateOver
             }}
           >
             {/* Header spacer - 5 rows: months, sprint names, dates, capacity input, usage */}
-            <Box sx={{ height: 132, borderBottom: 1, borderColor: 'divider' }} />
+            {/* This is the "no man's land" corner that covers both sticky header and sticky labels */}
+            <Box sx={{
+              height: 132,
+              borderBottom: 1,
+              borderColor: 'divider',
+              position: 'sticky',
+              top: 0,
+              zIndex: 3,
+              bgcolor: 'background.paper',
+            }} />
 
             {/* Epic labels */}
             {epics.map((epic, index) => (

@@ -143,7 +143,7 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange, sprintDateOver
               flexShrink: 0,
               position: 'sticky',
               left: 0,
-              zIndex: 2,
+              zIndex: 3,
               bgcolor: 'background.paper',
               borderRight: 1,
               borderColor: 'divider',
@@ -157,7 +157,7 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange, sprintDateOver
               borderColor: 'divider',
               position: 'sticky',
               top: 0,
-              zIndex: 3,
+              zIndex: 4,
               bgcolor: 'background.paper',
             }} />
 

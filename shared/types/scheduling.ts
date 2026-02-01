@@ -58,6 +58,7 @@ export interface ScheduledTicket extends JiraTicket {
   parallelGroup: number; // Topological level (0 = no deps, higher = more deps)
   criticalPathWeight: number; // Total dev days of this ticket + all downstream tickets
   isOnCriticalPath: boolean; // True if this ticket is on the critical path
+  hasConstraintViolation?: boolean; // True if ticket couldn't fit in its locked sprint (capacity overflow)
 }
 
 /**

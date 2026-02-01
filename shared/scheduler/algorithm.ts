@@ -1029,10 +1029,10 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
         earliestStart = firstFutureDay;
       }
 
-      // Find slot in future sprints
-      const slotStart = findSlotWithinSprint(earliestStart, ticket.devDays, dailyCapacity);
+      // Find slot in future sprints with capacity check
+      const slotStart = findNextAvailableSlot(earliestStart, ticket.devDays, dailyCapacity);
 
-      if (slotStart < 0 || slotStart < firstFutureDay) {
+      if (slotStart >= dailyCapacity.length || slotStart < firstFutureDay) {
         // No valid slot in future sprints
         epicUnslottedTickets.get(epic.key)!.push(ticket);
         continue;

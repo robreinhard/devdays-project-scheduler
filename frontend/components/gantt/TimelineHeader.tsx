@@ -6,6 +6,7 @@ import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import WarningIcon from '@mui/icons-material/Warning';
+import CircleIcon from '@mui/icons-material/Circle';
 import type {SprintWithCapacity, DayCapacityInfo, SprintDateOverride} from '@/shared/types';
 import {parseDate, workDaysBetween} from '@/shared/utils/dates';
 import {getSprintDateOverride} from '@/shared/utils/sprints';
@@ -176,6 +177,14 @@ const TimelineHeader = ({
                     const sprintWorkDays = workDaysBetween(sprintStartDt, sprintEndDt.plus({ days: 1 }));
                     const isNonStandardLength = sprintWorkDays !== EXPECTED_SPRINT_WORKDAYS;
 
+                    // Sprint state indicator colors
+                    const stateConfig = {
+                        active: { color: '#4caf50', label: 'Active' },
+                        closed: { color: '#9e9e9e', label: 'Closed' },
+                        future: { color: '#2196f3', label: 'Future' },
+                    };
+                    const sprintState = stateConfig[sprint.state] ?? stateConfig.future;
+
                     // Determine background color priority: non-standard length (warning) > overridden > default
                     let bgColor: string | undefined;
                     if (isNonStandardLength) {
@@ -186,7 +195,13 @@ const TimelineHeader = ({
 
                     const tooltipContent = (
                         <Box sx={{p: 0.5}}>
-                            <Typography variant="subtitle2" fontWeight="bold">{sprint.name}</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                                <CircleIcon sx={{ fontSize: 8, color: sprintState.color }} />
+                                <Typography variant="subtitle2" fontWeight="bold">{sprint.name}</Typography>
+                                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                    ({sprintState.label})
+                                </Typography>
+                            </Box>
                             {isOverridden && (
                                 <Typography variant="caption" display="block" sx={{ color: 'warning.light', fontStyle: 'italic' }}>
                                     (Dates manually overridden)
@@ -226,8 +241,9 @@ const TimelineHeader = ({
                                     gap: 0.5,
                                 }}
                             >
+                                <CircleIcon sx={{ fontSize: 8, color: sprintState.color, flexShrink: 0 }} />
                                 {isNonStandardLength && (
-                                    <WarningIcon sx={{ fontSize: 14, color: 'warning.contrastText' }} />
+                                    <WarningIcon sx={{ fontSize: 14, color: 'warning.contrastText', flexShrink: 0 }} />
                                 )}
                                 <Typography
                                     variant="caption"

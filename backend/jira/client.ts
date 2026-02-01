@@ -16,6 +16,7 @@ interface JiraConfig {
   apiToken: string;
   fieldDevDays: string;
   fieldSprint: string;
+  fieldSprintPointEstimate?: string; // Optional: manager/tech lead estimate for unpointed tickets
   boardId: string;
 }
 
@@ -28,6 +29,7 @@ export const getJiraConfig = (): JiraConfig => {
   const apiToken = process.env.JIRA_API_TOKEN;
   const fieldDevDays = process.env.JIRA_FIELD_DEV_DAYS;
   const fieldSprint = process.env.JIRA_FIELD_SPRINT ?? 'customfield_10020';
+  const fieldSprintPointEstimate = process.env.JIRA_FIELD_SPRINT_POINT_ESTIMATE; // Optional
   const boardId = process.env.JIRA_BOARD_ID;
 
   if (!baseUrl || !email || !apiToken || !fieldDevDays || !boardId) {
@@ -43,6 +45,7 @@ export const getJiraConfig = (): JiraConfig => {
     apiToken,
     fieldDevDays,
     fieldSprint,
+    fieldSprintPointEstimate,
     boardId,
   };
 };
@@ -104,6 +107,7 @@ export class JiraClient {
       'issuelinks',
       this.config.fieldDevDays,
       this.config.fieldSprint,
+      ...(this.config.fieldSprintPointEstimate ? [this.config.fieldSprintPointEstimate] : []),
     ];
 
     const allFields = [...new Set([...defaultFields, ...fields])];
@@ -131,6 +135,7 @@ export class JiraClient {
       'issuelinks',
       this.config.fieldDevDays,
       this.config.fieldSprint,
+      ...(this.config.fieldSprintPointEstimate ? [this.config.fieldSprintPointEstimate] : []),
     ].join(',');
 
     return this.fetch<JiraIssueResponse>(`/rest/api/3/issue/${issueKey}?fields=${fields}`);
@@ -273,6 +278,7 @@ export class JiraClient {
   getFieldConfig = () => ({
     devDays: this.config.fieldDevDays,
     sprint: this.config.fieldSprint,
+    sprintPointEstimate: this.config.fieldSprintPointEstimate,
   });
 }
 

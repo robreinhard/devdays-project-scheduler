@@ -18,6 +18,7 @@ import type {
 interface FieldConfig {
   devDays: string;
   sprint: string;
+  sprintPointEstimate?: string; // Optional: manager/tech lead estimate for unpointed tickets
 }
 
 /**
@@ -116,9 +117,21 @@ export const mapToTicket = (
 ): JiraTicket => {
   const devDaysValue = issue.fields[fieldConfig.devDays];
 
-  // Check if estimate is missing (null, undefined, 0, or non-number)
+  // Check if team estimate is present (null, undefined, 0, or non-number means missing)
   const hasEstimate = typeof devDaysValue === 'number' && devDaysValue > 0;
-  const devDays = hasEstimate ? devDaysValue : DEFAULT_DEV_DAYS;
+
+  // If no team estimate, check for manager/tech lead sprint point estimate as fallback
+  let devDays: number;
+  if (hasEstimate) {
+    devDays = devDaysValue;
+  } else if (fieldConfig.sprintPointEstimate) {
+    const sprintPointValue = issue.fields[fieldConfig.sprintPointEstimate];
+    devDays = typeof sprintPointValue === 'number' && sprintPointValue > 0
+      ? sprintPointValue
+      : DEFAULT_DEV_DAYS;
+  } else {
+    devDays = DEFAULT_DEV_DAYS;
+  }
 
   // Extract blocker relationships from issue links
   const blockedBy = extractBlockedBy(issue.fields.issuelinks);

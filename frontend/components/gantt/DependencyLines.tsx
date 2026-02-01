@@ -213,30 +213,25 @@ const DependencyLines = ({
       }
     }
 
-    // Group epics by commit type to track section boundaries
-    const commitEpicKeys = new Set(epics.filter(e => e.commitType === 'commit').map(e => e.key));
-    const stretchEpicKeys = new Set(epics.filter(e => e.commitType === 'stretch').map(e => e.key));
-    const otherEpicKeys = new Set(epics.filter(e => e.commitType === 'none').map(e => e.key));
-
-    // Track which section we're in to add header heights
-    let addedCommitHeader = false;
-    let addedStretchHeader = false;
-    let addedOtherHeader = false;
+    // Sort epics to match render order in GanttChart: commits, then stretches, then others
+    const commitEpics = epics.filter(e => e.commitType === 'commit');
+    const stretchEpics = epics.filter(e => e.commitType === 'stretch');
+    const otherEpics = epics.filter(e => e.commitType === 'none');
+    const sortedEpics = [...commitEpics, ...stretchEpics, ...otherEpics];
 
     // Calculate Y offset for each ticket row
     let currentY = 0;
 
-    for (const epic of epics) {
-      // Add section header height when entering a new section
-      if (hasCommits && commitEpicKeys.has(epic.key) && !addedCommitHeader) {
+    for (let i = 0; i < sortedEpics.length; i++) {
+      const epic = sortedEpics[i];
+
+      // Add section header height at the start of each section
+      if (i === 0 && hasCommits && commitEpics.length > 0) {
         currentY += sectionHeaderHeight;
-        addedCommitHeader = true;
-      } else if (hasStretches && stretchEpicKeys.has(epic.key) && !addedStretchHeader) {
+      } else if (i === commitEpics.length && hasStretches && stretchEpics.length > 0) {
         currentY += sectionHeaderHeight;
-        addedStretchHeader = true;
-      } else if (hasOthers && otherEpicKeys.has(epic.key) && !addedOtherHeader) {
+      } else if (i === commitEpics.length + stretchEpics.length && hasOthers && otherEpics.length > 0) {
         currentY += sectionHeaderHeight;
-        addedOtherHeader = true;
       }
 
       // Epic summary row

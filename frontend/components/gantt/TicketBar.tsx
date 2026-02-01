@@ -76,6 +76,14 @@ const TicketBar = ({ticket, dayWidth, rowHeight, epicColor, chartLeftOffset = 0}
             <Typography variant="subtitle2" fontWeight="bold">
                 {ticket.key}: {ticket.summary}
             </Typography>
+            {ticket.hasConstraintViolation && (
+                <Typography
+                    variant="caption"
+                    sx={{color: '#d32f2f', fontWeight: 'bold', display: 'block', mt: 0.5}}
+                >
+                    ⚠ Timeline constraint violated - ticket does not fit in sprint capacity
+                </Typography>
+            )}
             {ticket.isMissingEstimate && (
                 <Typography
                     variant="caption"
@@ -162,8 +170,12 @@ const TicketBar = ({ticket, dayWidth, rowHeight, epicColor, chartLeftOffset = 0}
                     px: 0.5,
                     overflow: 'hidden',
                     transition: 'transform 0.1s, box-shadow 0.1s',
-                    // Thick black border for critical path tickets
-                    border: ticket.isOnCriticalPath ? '3px solid #000' : 'none',
+                    // Border priority: constraint violation (red) > critical path (black) > none
+                    border: ticket.hasConstraintViolation
+                        ? '3px solid #d32f2f'
+                        : ticket.isOnCriticalPath
+                            ? '3px solid #000'
+                            : 'none',
                     boxSizing: 'border-box',
                     '&:hover': {
                         transform: 'scale(1.02)',

@@ -4,17 +4,18 @@
  */
 
 /**
- * Commit type for epics - determines scheduling priority
- * - 'commit': High priority epics that are scheduled first
- * - 'stretch': Lower priority epics that fill gaps after commits
+ * Commit type for epics - determines scheduling priority (three tiers)
+ * - 'commit': Highest priority epics that are scheduled first
+ * - 'stretch': Medium priority epics that fill gaps after commits
+ * - 'none': Lowest priority epics that are scheduled last
  */
-export type CommitType = 'commit' | 'stretch';
+export type CommitType = 'commit' | 'stretch' | 'none';
 
 export interface JiraEpic {
   key: string;           // e.g., "PROJ-123"
   summary: string;       // Epic title
   status: string;        // e.g., "In Progress"
-  commitType: CommitType; // From labels: "Commit" or "Stretch" (default: stretch)
+  commitType: CommitType; // From labels: "Commit" or "Stretch" (default: none)
   priorityOverride?: number; // From labels like "Commit-1", "Stretch-2" for manual ordering
 }
 

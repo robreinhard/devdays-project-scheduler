@@ -11,6 +11,10 @@ interface DependencyLinesProps {
   rowHeight: number;
   totalDays: number;
   chartLeftOffset?: number;
+  sectionHeaderHeight?: number;
+  hasCommits?: boolean;
+  hasStretches?: boolean;
+  hasOthers?: boolean;
 }
 
 interface TicketPosition {
@@ -187,6 +191,10 @@ const DependencyLines = ({
   rowHeight,
   totalDays,
   chartLeftOffset = 0,
+  sectionHeaderHeight = 0,
+  hasCommits = false,
+  hasStretches = false,
+  hasOthers = false,
 }: DependencyLinesProps) => {
   // Calculate all ticket positions and dependency connections
   const { ticketPositions, connections, svgHeight } = useMemo(() => {
@@ -205,10 +213,27 @@ const DependencyLines = ({
       }
     }
 
+    // Sort epics to match render order in GanttChart: commits, then stretches, then others
+    const commitEpics = epics.filter(e => e.commitType === 'commit');
+    const stretchEpics = epics.filter(e => e.commitType === 'stretch');
+    const otherEpics = epics.filter(e => e.commitType === 'none');
+    const sortedEpics = [...commitEpics, ...stretchEpics, ...otherEpics];
+
     // Calculate Y offset for each ticket row
     let currentY = 0;
 
-    for (const epic of epics) {
+    for (let i = 0; i < sortedEpics.length; i++) {
+      const epic = sortedEpics[i];
+
+      // Add section header height at the start of each section
+      if (i === 0 && hasCommits && commitEpics.length > 0) {
+        currentY += sectionHeaderHeight;
+      } else if (i === commitEpics.length && hasStretches && stretchEpics.length > 0) {
+        currentY += sectionHeaderHeight;
+      } else if (i === commitEpics.length + stretchEpics.length && hasOthers && otherEpics.length > 0) {
+        currentY += sectionHeaderHeight;
+      }
+
       // Epic summary row
       currentY += rowHeight;
 
@@ -345,7 +370,7 @@ const DependencyLines = ({
       connections: conns,
       svgHeight: currentY,
     };
-  }, [epics, expandedEpics, dayWidth, rowHeight, totalDays, chartLeftOffset]);
+  }, [epics, expandedEpics, dayWidth, rowHeight, totalDays, chartLeftOffset, sectionHeaderHeight, hasCommits, hasStretches, hasOthers]);
 
   // Calculate SVG width based on the rightmost ticket
   const svgWidth = useMemo(() => {

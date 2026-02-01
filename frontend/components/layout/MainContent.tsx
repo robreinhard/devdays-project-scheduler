@@ -16,7 +16,7 @@ const MainContent = ({ children }: MainContentProps) => {
         height: '100%',
         overflow: 'auto',
         px: 2,
-
+        pb: 2,
         bgcolor: 'background.default',
       }}
     >

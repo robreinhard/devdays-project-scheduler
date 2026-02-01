@@ -11,6 +11,10 @@ interface DependencyLinesProps {
   rowHeight: number;
   totalDays: number;
   chartLeftOffset?: number;
+  sectionHeaderHeight?: number;
+  hasCommits?: boolean;
+  hasStretches?: boolean;
+  hasOthers?: boolean;
 }
 
 interface TicketPosition {
@@ -187,6 +191,10 @@ const DependencyLines = ({
   rowHeight,
   totalDays,
   chartLeftOffset = 0,
+  sectionHeaderHeight = 0,
+  hasCommits = false,
+  hasStretches = false,
+  hasOthers = false,
 }: DependencyLinesProps) => {
   // Calculate all ticket positions and dependency connections
   const { ticketPositions, connections, svgHeight } = useMemo(() => {
@@ -205,10 +213,32 @@ const DependencyLines = ({
       }
     }
 
+    // Group epics by commit type to track section boundaries
+    const commitEpicKeys = new Set(epics.filter(e => e.commitType === 'commit').map(e => e.key));
+    const stretchEpicKeys = new Set(epics.filter(e => e.commitType === 'stretch').map(e => e.key));
+    const otherEpicKeys = new Set(epics.filter(e => e.commitType === 'none').map(e => e.key));
+
+    // Track which section we're in to add header heights
+    let addedCommitHeader = false;
+    let addedStretchHeader = false;
+    let addedOtherHeader = false;
+
     // Calculate Y offset for each ticket row
     let currentY = 0;
 
     for (const epic of epics) {
+      // Add section header height when entering a new section
+      if (hasCommits && commitEpicKeys.has(epic.key) && !addedCommitHeader) {
+        currentY += sectionHeaderHeight;
+        addedCommitHeader = true;
+      } else if (hasStretches && stretchEpicKeys.has(epic.key) && !addedStretchHeader) {
+        currentY += sectionHeaderHeight;
+        addedStretchHeader = true;
+      } else if (hasOthers && otherEpicKeys.has(epic.key) && !addedOtherHeader) {
+        currentY += sectionHeaderHeight;
+        addedOtherHeader = true;
+      }
+
       // Epic summary row
       currentY += rowHeight;
 
@@ -345,7 +375,7 @@ const DependencyLines = ({
       connections: conns,
       svgHeight: currentY,
     };
-  }, [epics, expandedEpics, dayWidth, rowHeight, totalDays, chartLeftOffset]);
+  }, [epics, expandedEpics, dayWidth, rowHeight, totalDays, chartLeftOffset, sectionHeaderHeight, hasCommits, hasStretches, hasOthers]);
 
   // Calculate SVG width based on the rightmost ticket
   const svgWidth = useMemo(() => {

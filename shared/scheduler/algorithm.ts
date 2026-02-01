@@ -659,13 +659,15 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
     worstCaseMap.set(epic.key, calculateWorstCase(epic, tickets));
   }
 
-  // Separate epics by commit type
+  // Separate epics by commit type (three tiers)
   const commitEpics = epics.filter(e => e.commitType === 'commit');
   const stretchEpics = epics.filter(e => e.commitType === 'stretch');
+  const noneEpics = epics.filter(e => e.commitType === 'none');
 
-  // Sort each group
+  // Sort each group by priority override then worst-case duration
   const sortedCommits = sortEpics(commitEpics, worstCaseMap);
   const sortedStretch = sortEpics(stretchEpics, worstCaseMap);
+  const sortedNone = sortEpics(noneEpics, worstCaseMap);
 
   // Track all scheduled tickets and blocks per epic
   const allScheduledTickets: ScheduledTicket[] = [];
@@ -704,6 +706,88 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
 
   // Slot stretch epics (fill gaps with available capacity, respecting dependencies)
   for (const epic of sortedStretch) {
+    // Partition tickets for this epic
+    const { previous, schedulable } = partitionEpicTickets(epic.key, tickets, effectiveSelectedSprintIds);
+
+    // Store previous block
+    epicPreviousBlocks.set(epic.key, createAggregateBlock('previous', previous));
+
+    const epicTickets = getEpicTicketsTopological(epic.key, schedulable);
+    const epicTicketKeys = new Set(epicTickets.map(t => t.key));
+
+    // Track end days for each scheduled ticket (for dependency resolution)
+    const ticketEndDays = new Map<string, number>();
+    // Track unslotted tickets
+    const unslottedTickets: JiraTicket[] = [];
+    const unslottedKeys = new Set<string>();
+
+    // Process tickets in topological order
+    for (const ticket of epicTickets) {
+      // Check if any blocker is unslotted
+      const blockedBy = ticket.blockedBy ?? [];
+      const hasUnslottedBlocker = blockedBy.some(key => unslottedKeys.has(key));
+
+      if (hasUnslottedBlocker) {
+        unslottedTickets.push(ticket);
+        unslottedKeys.add(ticket.key);
+        continue;
+      }
+
+      // Calculate earliest start based on blockers
+      let earliestStart = 0;
+      for (const blockerKey of blockedBy) {
+        if (epicTicketKeys.has(blockerKey)) {
+          const blockerEndDay = ticketEndDays.get(blockerKey);
+          if (blockerEndDay !== undefined && blockerEndDay > earliestStart) {
+            earliestStart = blockerEndDay;
+          }
+        }
+      }
+
+      // Find next available slot with capacity starting from earliest possible
+      const startDayIndex = findNextAvailableSlot(
+        earliestStart,
+        ticket.devDays,
+        dailyCapacity
+      );
+
+      if (startDayIndex >= dailyCapacity.length) {
+        // No slot found - add to unslotted
+        unslottedTickets.push(ticket);
+        unslottedKeys.add(ticket.key);
+        continue;
+      }
+
+      const endDay = startDayIndex + ticket.devDays;
+      const sprintId = dailyCapacity[startDayIndex].sprintId;
+
+      // Consume capacity
+      for (let d = startDayIndex; d < endDay && d < dailyCapacity.length; d++) {
+        dailyCapacity[d].remainingCapacity -= 1;
+      }
+
+      // Track this ticket's end day for dependent tickets
+      ticketEndDays.set(ticket.key, endDay);
+
+      allScheduledTickets.push({
+        ...ticket,
+        startDay: startDayIndex,
+        endDay,
+        startDate: getDateFromDayIndex(startDayIndex, dailyCapacity),
+        endDate: getEndDateFromDayIndex(endDay, dailyCapacity),
+        sprintId,
+        parallelGroup: ticket.level,
+        criticalPathWeight: ticket.downstreamWeight,
+        isOnCriticalPath: false,
+      });
+    }
+
+    // Store future block from unslotted tickets
+    epicFutureBlocks.set(epic.key, createAggregateBlock('future', unslottedTickets));
+  }
+
+  // Slot "none" epics last (lowest priority, fill remaining gaps)
+  for (const epic of sortedNone) {
     // Partition tickets for this epic
     const { previous, schedulable } = partitionEpicTickets(epic.key, tickets, effectiveSelectedSprintIds);
 

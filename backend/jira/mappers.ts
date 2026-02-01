@@ -47,8 +47,8 @@ const parseCommitLabel = (labels: string[] = []): { commitType: CommitType; prio
     }
   }
 
-  // Default to stretch if no label found
-  return { commitType: 'stretch' };
+  // Default to 'none' if no commit/stretch label found (lowest priority tier)
+  return { commitType: 'none' };
 };
 
 /**

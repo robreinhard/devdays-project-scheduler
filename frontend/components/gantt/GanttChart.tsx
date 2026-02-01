@@ -5,7 +5,8 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import { DateTime } from 'luxon';
-import type { GanttData, SprintDateOverride } from '@/shared/types';
+import Divider from '@mui/material/Divider';
+import type { GanttData, SprintDateOverride, ScheduledEpic } from '@/shared/types';
 import { parseDate, isWeekend, TIMEZONE } from '@/shared/utils/dates';
 import TimelineHeader from './TimelineHeader';
 import EpicRow from './EpicRow';
@@ -84,6 +85,14 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange, sprintDateOver
     return Math.max(totalDays, workDays);
   }, [sprints, projectStartDate, totalDays]);
 
+  // Group epics by commit type for section dividers
+  const epicsByType = useMemo(() => {
+    const commits = epics.filter(e => e.commitType === 'commit');
+    const stretches = epics.filter(e => e.commitType === 'stretch');
+    const others = epics.filter(e => e.commitType === 'none');
+    return { commits, stretches, others };
+  }, [epics]);
+
   // Check if any epic has a Previous block (to add left offset)
   const hasPreviousBlocks = useMemo(() => {
     return epics.some(epic => epic.previousBlock);
@@ -161,21 +170,82 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange, sprintDateOver
               bgcolor: 'background.paper',
             }} />
 
-            {/* Epic labels */}
-            {epics.map((epic, index) => (
-              <EpicRow
-                key={epic.key}
-                epic={epic}
-                labelOnly
-                dayWidth={DAY_WIDTH}
-                rowHeight={ROW_HEIGHT}
-                startDate={projectStartDate}
-                expanded={expandedEpics[epic.key] ?? true}
-                onToggleExpanded={() => toggleEpicExpanded(epic.key)}
-                epicColor={getEpicColor(index)}
-                totalDays={totalDisplayDays}
-              />
-            ))}
+            {/* Epic labels grouped by commit type */}
+            {/* Commits section header */}
+            {epicsByType.commits.length > 0 && (
+              <Box sx={{ height: 20, display: 'flex', alignItems: 'center', bgcolor: 'grey.100', borderBottom: 2, borderColor: 'black' }}>
+                <Typography variant="caption" sx={{ px: 1, fontWeight: 'bold', color: 'text.secondary', fontSize: 10 }}>
+                  COMMITS
+                </Typography>
+              </Box>
+            )}
+            {epicsByType.commits.map((epic) => {
+              const globalIndex = epics.findIndex(e => e.key === epic.key);
+              return (
+                <EpicRow
+                  key={epic.key}
+                  epic={epic}
+                  labelOnly
+                  dayWidth={DAY_WIDTH}
+                  rowHeight={ROW_HEIGHT}
+                  startDate={projectStartDate}
+                  expanded={expandedEpics[epic.key] ?? true}
+                  onToggleExpanded={() => toggleEpicExpanded(epic.key)}
+                  epicColor={getEpicColor(globalIndex)}
+                  totalDays={totalDisplayDays}
+                />
+              );
+            })}
+            {/* Stretches section header */}
+            {epicsByType.stretches.length > 0 && (
+              <Box sx={{ height: 20, display: 'flex', alignItems: 'center', bgcolor: 'grey.100', borderBottom: 2, borderColor: 'black' }}>
+                <Typography variant="caption" sx={{ px: 1, fontWeight: 'bold', color: 'text.secondary', fontSize: 10 }}>
+                  STRETCHES
+                </Typography>
+              </Box>
+            )}
+            {epicsByType.stretches.map((epic) => {
+              const globalIndex = epics.findIndex(e => e.key === epic.key);
+              return (
+                <EpicRow
+                  key={epic.key}
+                  epic={epic}
+                  labelOnly
+                  dayWidth={DAY_WIDTH}
+                  rowHeight={ROW_HEIGHT}
+                  startDate={projectStartDate}
+                  expanded={expandedEpics[epic.key] ?? true}
+                  onToggleExpanded={() => toggleEpicExpanded(epic.key)}
+                  epicColor={getEpicColor(globalIndex)}
+                  totalDays={totalDisplayDays}
+                />
+              );
+            })}
+            {/* Others section header */}
+            {epicsByType.others.length > 0 && (
+              <Box sx={{ height: 20, display: 'flex', alignItems: 'center', bgcolor: 'grey.100', borderBottom: 2, borderColor: 'black' }}>
+                <Typography variant="caption" sx={{ px: 1, fontWeight: 'bold', color: 'text.secondary', fontSize: 10 }}>
+                  OTHER
+                </Typography>
+              </Box>
+            )}
+            {epicsByType.others.map((epic) => {
+              const globalIndex = epics.findIndex(e => e.key === epic.key);
+              return (
+                <EpicRow
+                  key={epic.key}
+                  epic={epic}
+                  labelOnly
+                  dayWidth={DAY_WIDTH}
+                  rowHeight={ROW_HEIGHT}
+                  startDate={projectStartDate}
+                  expanded={expandedEpics[epic.key] ?? true}
+                  onToggleExpanded={() => toggleEpicExpanded(epic.key)}
+                  epicColor={getEpicColor(globalIndex)}
+                  totalDays={totalDisplayDays}
+                />
+              );
+            })}
           </Box>
 
           {/* Chart area */}
@@ -203,25 +273,82 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange, sprintDateOver
                 rowHeight={ROW_HEIGHT}
                 totalDays={totalDisplayDays}
                 chartLeftOffset={previousBlockOffset}
+                sectionHeaderHeight={20}
+                hasCommits={epicsByType.commits.length > 0}
+                hasStretches={epicsByType.stretches.length > 0}
+                hasOthers={epicsByType.others.length > 0}
               />
 
-              {/* Epic rows */}
-              {epics.map((epic, index) => (
-                <EpicRow
-                  key={epic.key}
-                  epic={epic}
-                  dayWidth={DAY_WIDTH}
-                  rowHeight={ROW_HEIGHT}
-                  startDate={projectStartDate}
-                  expanded={expandedEpics[epic.key] ?? true}
-                  onToggleExpanded={() => toggleEpicExpanded(epic.key)}
-                  epicColor={getEpicColor(index)}
-                  today={today}
-                  dailyCapacities={dailyCapacities}
-                  totalDays={totalDisplayDays}
-                  chartLeftOffset={previousBlockOffset}
-                />
-              ))}
+              {/* Epic rows grouped by commit type */}
+              {/* Commits section header */}
+              {epicsByType.commits.length > 0 && (
+                <Box sx={{ height: 20, borderBottom: 2, borderColor: 'black', bgcolor: 'grey.100' }} />
+              )}
+              {epicsByType.commits.map((epic) => {
+                const globalIndex = epics.findIndex(e => e.key === epic.key);
+                return (
+                  <EpicRow
+                    key={epic.key}
+                    epic={epic}
+                    dayWidth={DAY_WIDTH}
+                    rowHeight={ROW_HEIGHT}
+                    startDate={projectStartDate}
+                    expanded={expandedEpics[epic.key] ?? true}
+                    onToggleExpanded={() => toggleEpicExpanded(epic.key)}
+                    epicColor={getEpicColor(globalIndex)}
+                    today={today}
+                    dailyCapacities={dailyCapacities}
+                    totalDays={totalDisplayDays}
+                    chartLeftOffset={previousBlockOffset}
+                  />
+                );
+              })}
+              {/* Stretches section header */}
+              {epicsByType.stretches.length > 0 && (
+                <Box sx={{ height: 20, borderBottom: 2, borderColor: 'black', bgcolor: 'grey.100' }} />
+              )}
+              {epicsByType.stretches.map((epic) => {
+                const globalIndex = epics.findIndex(e => e.key === epic.key);
+                return (
+                  <EpicRow
+                    key={epic.key}
+                    epic={epic}
+                    dayWidth={DAY_WIDTH}
+                    rowHeight={ROW_HEIGHT}
+                    startDate={projectStartDate}
+                    expanded={expandedEpics[epic.key] ?? true}
+                    onToggleExpanded={() => toggleEpicExpanded(epic.key)}
+                    epicColor={getEpicColor(globalIndex)}
+                    today={today}
+                    dailyCapacities={dailyCapacities}
+                    totalDays={totalDisplayDays}
+                    chartLeftOffset={previousBlockOffset}
+                  />
+                );
+              })}
+              {/* Others section header */}
+              {epicsByType.others.length > 0 && (
+                <Box sx={{ height: 20, borderBottom: 2, borderColor: 'black', bgcolor: 'grey.100' }} />
+              )}
+              {epicsByType.others.map((epic) => {
+                const globalIndex = epics.findIndex(e => e.key === epic.key);
+                return (
+                  <EpicRow
+                    key={epic.key}
+                    epic={epic}
+                    dayWidth={DAY_WIDTH}
+                    rowHeight={ROW_HEIGHT}
+                    startDate={projectStartDate}
+                    expanded={expandedEpics[epic.key] ?? true}
+                    onToggleExpanded={() => toggleEpicExpanded(epic.key)}
+                    epicColor={getEpicColor(globalIndex)}
+                    today={today}
+                    dailyCapacities={dailyCapacities}
+                    totalDays={totalDisplayDays}
+                    chartLeftOffset={previousBlockOffset}
+                  />
+                );
+              })}
             </Box>
           </Box>
         </Box>

@@ -126,6 +126,10 @@ export const useAppState = (): UseAppStateResult => {
   const [epics, setEpics] = useState<JiraEpic[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Local state for sidebar (for instant updates without re-render)
+  const initialSidebarCollapsed = searchParams.get(QUERY_PARAM_KEYS.SIDEBAR_COLLAPSED) === '1';
+  const [sidebarCollapsed, setSidebarCollapsedState] = useState(initialSidebarCollapsed);
+
   // Track loaded epic keys to prevent duplicates (only accessed in callbacks/effects)
   const loadedKeysRef = useRef<Set<string>>(new Set());
 
@@ -153,9 +157,6 @@ export const useAppState = (): UseAppStateResult => {
   // Default to true (on) - only false if explicitly set to '0' or 'false'
   const autoAdjustParam = searchParams.get(QUERY_PARAM_KEYS.AUTO_ADJUST_START);
   const autoAdjustStartDate = autoAdjustParam !== '0' && autoAdjustParam !== 'false';
-  // Sidebar collapsed - default to false (expanded)
-  const sidebarCollapsedParam = searchParams.get(QUERY_PARAM_KEYS.SIDEBAR_COLLAPSED);
-  const sidebarCollapsed = sidebarCollapsedParam === '1' || sidebarCollapsedParam === 'true';
 
   // Update URL helper
   const updateUrl = useCallback((key: string, value: string | null) => {
@@ -378,9 +379,19 @@ export const useAppState = (): UseAppStateResult => {
   }, [updateUrl]);
 
   const setSidebarCollapsed = useCallback((collapsed: boolean) => {
-    // Only store in URL if collapsed (since default is expanded)
-    updateUrl(QUERY_PARAM_KEYS.SIDEBAR_COLLAPSED, collapsed ? '1' : null);
-  }, [updateUrl]);
+    // Update local state for instant feedback
+    setSidebarCollapsedState(collapsed);
+
+    // Use replaceState directly to avoid Next.js navigation/re-render
+    const params = new URLSearchParams(window.location.search);
+    if (collapsed) {
+      params.set(QUERY_PARAM_KEYS.SIDEBAR_COLLAPSED, '1');
+    } else {
+      params.delete(QUERY_PARAM_KEYS.SIDEBAR_COLLAPSED);
+    }
+    const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
+  }, []);
 
   // Load epics from URL when epicKeys change
   useEffect(() => {

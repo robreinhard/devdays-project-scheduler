@@ -31,7 +31,9 @@ const HomeContent = () => {
     dailyCapacityOverrides,
     sprintDateOverrides,
     autoAdjustStartDate,
+    sidebarCollapsed,
     setDailyCapacityOverride,
+    setSidebarCollapsed,
   } = useAppState();
   const { ganttData, isLoading, error, generate, clear, clearCache } = useGanttData();
 
@@ -187,7 +189,7 @@ const HomeContent = () => {
           overflow: 'hidden',
         }}
       >
-        <Sidebar>
+        <Sidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed}>
           <SidebarContent isGenerating={isLoading} onSprintOverlapChange={handleSprintOverlapChange} />
         </Sidebar>
         <MainContent>

@@ -15,7 +15,8 @@ const MainContent = ({ children }: MainContentProps) => {
         flexGrow: 1,
         height: '100%',
         overflow: 'auto',
-        p: 2,
+        px: 2,
+
         bgcolor: 'background.default',
       }}
     >

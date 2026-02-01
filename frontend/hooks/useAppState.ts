@@ -97,6 +97,7 @@ interface UseAppStateResult {
   dailyCapacityOverrides: DailyCapacityOverride[];
   sprintDateOverrides: SprintDateOverride[];
   autoAdjustStartDate: boolean;
+  sidebarCollapsed: boolean;
   isLoading: boolean;
 
   // Actions
@@ -114,6 +115,7 @@ interface UseAppStateResult {
   setSprintDateOverride: (sprintId: number, startDate: string, endDate: string) => void;
   clearSprintDateOverride: (sprintId: number) => void;
   setAutoAdjustStartDate: (enabled: boolean) => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
 }
 
 export const useAppState = (): UseAppStateResult => {
@@ -151,6 +153,9 @@ export const useAppState = (): UseAppStateResult => {
   // Default to true (on) - only false if explicitly set to '0' or 'false'
   const autoAdjustParam = searchParams.get(QUERY_PARAM_KEYS.AUTO_ADJUST_START);
   const autoAdjustStartDate = autoAdjustParam !== '0' && autoAdjustParam !== 'false';
+  // Sidebar collapsed - default to false (expanded)
+  const sidebarCollapsedParam = searchParams.get(QUERY_PARAM_KEYS.SIDEBAR_COLLAPSED);
+  const sidebarCollapsed = sidebarCollapsedParam === '1' || sidebarCollapsedParam === 'true';
 
   // Update URL helper
   const updateUrl = useCallback((key: string, value: string | null) => {
@@ -372,6 +377,11 @@ export const useAppState = (): UseAppStateResult => {
     updateUrl(QUERY_PARAM_KEYS.AUTO_ADJUST_START, enabled ? null : '0');
   }, [updateUrl]);
 
+  const setSidebarCollapsed = useCallback((collapsed: boolean) => {
+    // Only store in URL if collapsed (since default is expanded)
+    updateUrl(QUERY_PARAM_KEYS.SIDEBAR_COLLAPSED, collapsed ? '1' : null);
+  }, [updateUrl]);
+
   // Load epics from URL when epicKeys change
   useEffect(() => {
     if (epicKeys.length > 0) {
@@ -393,6 +403,7 @@ export const useAppState = (): UseAppStateResult => {
     dailyCapacityOverrides,
     sprintDateOverrides,
     autoAdjustStartDate,
+    sidebarCollapsed,
     isLoading,
     setProjectKey,
     setBoardId,
@@ -408,5 +419,6 @@ export const useAppState = (): UseAppStateResult => {
     setSprintDateOverride,
     clearSprintDateOverride,
     setAutoAdjustStartDate,
+    setSidebarCollapsed,
   };
 };

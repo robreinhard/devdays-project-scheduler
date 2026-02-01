@@ -97,6 +97,7 @@ interface UseAppStateResult {
   dailyCapacityOverrides: DailyCapacityOverride[];
   sprintDateOverrides: SprintDateOverride[];
   autoAdjustStartDate: boolean;
+  sidebarCollapsed: boolean;
   isLoading: boolean;
 
   // Actions
@@ -114,6 +115,7 @@ interface UseAppStateResult {
   setSprintDateOverride: (sprintId: number, startDate: string, endDate: string) => void;
   clearSprintDateOverride: (sprintId: number) => void;
   setAutoAdjustStartDate: (enabled: boolean) => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
 }
 
 export const useAppState = (): UseAppStateResult => {
@@ -123,6 +125,10 @@ export const useAppState = (): UseAppStateResult => {
   // Local state for epics (includes full epic data)
   const [epics, setEpics] = useState<JiraEpic[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Local state for sidebar (for instant updates without re-render)
+  const initialSidebarCollapsed = searchParams.get(QUERY_PARAM_KEYS.SIDEBAR_COLLAPSED) === '1';
+  const [sidebarCollapsed, setSidebarCollapsedState] = useState(initialSidebarCollapsed);
 
   // Track loaded epic keys to prevent duplicates (only accessed in callbacks/effects)
   const loadedKeysRef = useRef<Set<string>>(new Set());
@@ -372,6 +378,21 @@ export const useAppState = (): UseAppStateResult => {
     updateUrl(QUERY_PARAM_KEYS.AUTO_ADJUST_START, enabled ? null : '0');
   }, [updateUrl]);
 
+  const setSidebarCollapsed = useCallback((collapsed: boolean) => {
+    // Update local state for instant feedback
+    setSidebarCollapsedState(collapsed);
+
+    // Use replaceState directly to avoid Next.js navigation/re-render
+    const params = new URLSearchParams(window.location.search);
+    if (collapsed) {
+      params.set(QUERY_PARAM_KEYS.SIDEBAR_COLLAPSED, '1');
+    } else {
+      params.delete(QUERY_PARAM_KEYS.SIDEBAR_COLLAPSED);
+    }
+    const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
+  }, []);
+
   // Load epics from URL when epicKeys change
   useEffect(() => {
     if (epicKeys.length > 0) {
@@ -393,6 +414,7 @@ export const useAppState = (): UseAppStateResult => {
     dailyCapacityOverrides,
     sprintDateOverrides,
     autoAdjustStartDate,
+    sidebarCollapsed,
     isLoading,
     setProjectKey,
     setBoardId,
@@ -408,5 +430,6 @@ export const useAppState = (): UseAppStateResult => {
     setSprintDateOverride,
     clearSprintDateOverride,
     setAutoAdjustStartDate,
+    setSidebarCollapsed,
   };
 };

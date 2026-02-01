@@ -37,6 +37,7 @@ export const QUERY_PARAM_KEYS = {
   DAILY_CAPS: 'dc',
   SPRINT_DATES: 'sprintDates',
   AUTO_ADJUST_START: 'autoAdjust',
+  SIDEBAR_COLLAPSED: 'sb',
 } as const;
 
 /**

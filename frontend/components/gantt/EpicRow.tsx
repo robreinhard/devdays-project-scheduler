@@ -308,12 +308,27 @@ const EpicRow = ({
 
   const formatDate = (dt: { toFormat: (fmt: string) => string }) => dt.toFormat('MMM d, yyyy');
 
+  // Format the commit/stretch label for display
+  const getCommitLabel = (): string | null => {
+    if (epic.commitType === 'none') return null;
+    const base = epic.commitType.charAt(0).toUpperCase() + epic.commitType.slice(1);
+    return epic.priorityOverride !== undefined ? `${base}-${epic.priorityOverride}` : base;
+  };
+  const commitLabel = getCommitLabel();
+
   const epicTooltipContent = (
     <Box sx={{ p: 1 }}>
       <Typography variant="subtitle2" fontWeight="bold">
         {epic.key}: {epic.summary}
       </Typography>
       <Box sx={{ mt: 1, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 0.5 }}>
+        {commitLabel && (
+          <>
+            <Typography variant="caption" color="text.secondary">Priority:</Typography>
+            <Typography variant="caption" fontWeight="bold">{commitLabel}</Typography>
+          </>
+        )}
+
         <Typography variant="caption" color="text.secondary">Dev Days:</Typography>
         <Typography variant="caption">{epic.totalDevDays}</Typography>
 

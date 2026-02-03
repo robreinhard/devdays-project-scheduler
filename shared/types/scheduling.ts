@@ -111,4 +111,5 @@ export interface SchedulingInput {
   maxDevelopers: number;  // Points per day capacity (e.g., 5 devs = 5 pts/day)
   selectedSprintIds?: number[]; // Sprint IDs selected for scheduling (used to determine Previous/Future blocks)
   doneStatuses?: string[]; // Status names from board config that indicate "done" (from statusCategory.key === 'done')
+  activeSprints?: JiraSprint[]; // All active sprints from the board (for locking tickets even if sprint not selected)
 }

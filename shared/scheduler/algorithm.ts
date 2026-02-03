@@ -140,14 +140,28 @@ const isLockedSprint = (sprint: SprintWithCapacity): boolean => {
 /**
  * Get the locked sprint ID for a ticket (if any)
  * Returns the first active/closed sprint the ticket is assigned to
+ * Also checks activeSprintIds for sprints that may not be in the selected sprints list
  */
-const getLockedSprintId = (ticket: JiraTicket, sprints: SprintWithCapacity[]): number | null => {
+const getLockedSprintId = (
+  ticket: JiraTicket,
+  sprints: SprintWithCapacity[],
+  activeSprintIds: Set<number>
+): number | null => {
   if (!ticket.sprintIds || ticket.sprintIds.length === 0) return null;
 
+  // Build set of locked sprint IDs from selected sprints (active or closed)
   const lockedSprintIds = new Set(
     sprints.filter(isLockedSprint).map(s => s.id)
   );
 
+  // First check if ticket is in any active sprint (even if not selected)
+  for (const sprintId of ticket.sprintIds) {
+    if (activeSprintIds.has(sprintId)) {
+      return sprintId;
+    }
+  }
+
+  // Then check selected sprints that are locked (closed)
   for (const sprintId of ticket.sprintIds) {
     if (lockedSprintIds.has(sprintId)) {
       return sprintId;
@@ -698,7 +712,8 @@ const partitionEpicTickets = (
   allTickets: JiraTicket[],
   selectedSprintIds: number[],
   sprints: SprintWithCapacity[],
-  doneStatuses?: string[]
+  doneStatuses: string[] | undefined,
+  activeSprintIds: Set<number>
 ): PartitionedTickets => {
   const epicTickets = allTickets.filter(t => t.epicKey === epicKey);
   const previous: JiraTicket[] = [];
@@ -715,8 +730,8 @@ const partitionEpicTickets = (
       continue;
     }
 
-    // Check if ticket is locked to an active/closed sprint
-    const lockedSprintId = getLockedSprintId(ticket, sprints);
+    // Check if ticket is locked to an active/closed sprint (including active sprints not selected)
+    const lockedSprintId = getLockedSprintId(ticket, sprints, activeSprintIds);
     if (lockedSprintId !== null) {
       locked.push({ ticket, sprintId: lockedSprintId });
     } else {
@@ -733,7 +748,10 @@ const partitionEpicTickets = (
  * Slots tickets into sprints while respecting capacity and sprint boundaries
  */
 export const scheduleTickets = (input: SchedulingInput): GanttData => {
-  const { epics, tickets, sprints, sprintCapacities, maxDevelopers, selectedSprintIds, doneStatuses } = input;
+  const { epics, tickets, sprints, sprintCapacities, maxDevelopers, selectedSprintIds, doneStatuses, activeSprints } = input;
+
+  // Build set of active sprint IDs (includes all active sprints, even if not selected)
+  const activeSprintIds = new Set<number>(activeSprints?.map(s => s.id) ?? []);
 
   // Validate: Check for tickets > 10 points
   const oversizedTickets = tickets.filter(t => t.devDays > 10);
@@ -822,7 +840,8 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
       tickets,
       effectiveSelectedSprintIds,
       sprintsWithCapacity,
-      doneStatuses
+      doneStatuses,
+      activeSprintIds
     );
 
     // Store previous block

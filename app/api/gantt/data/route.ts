@@ -13,6 +13,7 @@ export interface GanttDataResponse {
   tickets: JiraTicket[];
   sprints: JiraSprint[];
   doneStatuses: string[];
+  activeSprints: JiraSprint[]; // All active sprints from the board (for locking even if not selected)
 }
 
 export const POST = async (request: NextRequest) => {
@@ -38,8 +39,12 @@ export const POST = async (request: NextRequest) => {
     const client = getJiraClient();
     const fieldConfig = client.getFieldConfig();
 
-    // Fetch done statuses from board configuration
-    const doneStatuses = await client.getDoneStatuses(boardId);
+    // Fetch done statuses and active sprints in parallel
+    const [doneStatuses, activeSprintsResponse] = await Promise.all([
+      client.getDoneStatuses(boardId),
+      client.getSprints('active', boardId),
+    ]);
+    const activeSprints = mapToSprints(activeSprintsResponse);
 
     // Fetch all epics and their tickets
     const epics: JiraEpic[] = [];
@@ -85,6 +90,7 @@ export const POST = async (request: NextRequest) => {
       tickets: allTickets,
       sprints: selectedSprints,
       doneStatuses,
+      activeSprints,
     };
 
     return NextResponse.json(response);

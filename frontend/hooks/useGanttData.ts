@@ -10,6 +10,7 @@ interface CachedData {
   tickets: JiraTicket[];
   sprints: JiraSprint[];
   doneStatuses: string[];
+  activeSprints: JiraSprint[];
   epicKeys: string[];
   sprintIds: number[];
   boardId?: number;
@@ -62,6 +63,7 @@ export const useGanttData = (): UseGanttDataResult => {
       let tickets: JiraTicket[];
       let sprints: JiraSprint[];
       let doneStatuses: string[];
+      let activeSprints: JiraSprint[];
 
       if (needsFetch) {
         // Fetch data from API
@@ -81,15 +83,17 @@ export const useGanttData = (): UseGanttDataResult => {
         tickets = data.tickets;
         sprints = data.sprints;
         doneStatuses = data.doneStatuses;
+        activeSprints = data.activeSprints;
 
         // Cache the data
-        cachedDataRef.current = { epics, tickets, sprints, doneStatuses, epicKeys, sprintIds, boardId };
+        cachedDataRef.current = { epics, tickets, sprints, doneStatuses, activeSprints, epicKeys, sprintIds, boardId };
       } else {
         // Use cached data
         epics = cached.epics;
         tickets = cached.tickets;
         sprints = cached.sprints;
         doneStatuses = cached.doneStatuses;
+        activeSprints = cached.activeSprints;
       }
 
       // Apply auto-adjust and sprint date overrides before scheduling
@@ -105,6 +109,7 @@ export const useGanttData = (): UseGanttDataResult => {
         sprintCapacities,
         maxDevelopers,
         doneStatuses,
+        activeSprints,
       });
 
       setGanttData(result);

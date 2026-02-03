@@ -5,18 +5,21 @@ import type { JiraEpic, JiraTicket, JiraSprint } from '@/shared/types';
 interface DataRequest {
   epicKeys: string[];
   sprintIds: number[];
+  boardId?: number;
 }
 
 export interface GanttDataResponse {
   epics: JiraEpic[];
   tickets: JiraTicket[];
   sprints: JiraSprint[];
+  doneStatuses: string[];
+  activeSprints: JiraSprint[]; // All active sprints from the board (for locking even if not selected)
 }
 
 export const POST = async (request: NextRequest) => {
   try {
     const body: DataRequest = await request.json();
-    const { epicKeys, sprintIds } = body;
+    const { epicKeys, sprintIds, boardId } = body;
 
     // Validate input
     if (!epicKeys || epicKeys.length === 0) {
@@ -35,6 +38,13 @@ export const POST = async (request: NextRequest) => {
 
     const client = getJiraClient();
     const fieldConfig = client.getFieldConfig();
+
+    // Fetch done statuses and active sprints in parallel
+    const [doneStatuses, activeSprintsResponse] = await Promise.all([
+      client.getDoneStatuses(boardId),
+      client.getSprints('active', boardId),
+    ]);
+    const activeSprints = mapToSprints(activeSprintsResponse);
 
     // Fetch all epics and their tickets
     const epics: JiraEpic[] = [];
@@ -79,6 +89,8 @@ export const POST = async (request: NextRequest) => {
       epics,
       tickets: allTickets,
       sprints: selectedSprints,
+      doneStatuses,
+      activeSprints,
     };
 
     return NextResponse.json(response);

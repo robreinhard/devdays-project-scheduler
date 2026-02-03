@@ -106,9 +106,16 @@ const buildDailyCapacityMap = (
 
 /**
  * Check if a ticket status indicates it's "done"
- * Matches: done, resolved, closed (case-insensitive)
+ * If doneStatuses is provided (from board config), uses exact match against those.
+ * Otherwise falls back to legacy matching: done, resolved, closed (case-insensitive)
  */
-const isDoneStatus = (status: string): boolean => {
+const isDoneStatus = (status: string, doneStatuses?: string[]): boolean => {
+  if (doneStatuses && doneStatuses.length > 0) {
+    // Use board config: exact match (case-insensitive)
+    const lowerStatus = status.toLowerCase();
+    return doneStatuses.some(ds => ds.toLowerCase() === lowerStatus);
+  }
+  // Fallback: legacy matching
   const lowerStatus = status.toLowerCase();
   return lowerStatus.includes('done') ||
          lowerStatus.includes('resolved') ||
@@ -133,14 +140,28 @@ const isLockedSprint = (sprint: SprintWithCapacity): boolean => {
 /**
  * Get the locked sprint ID for a ticket (if any)
  * Returns the first active/closed sprint the ticket is assigned to
+ * Also checks activeSprintIds for sprints that may not be in the selected sprints list
  */
-const getLockedSprintId = (ticket: JiraTicket, sprints: SprintWithCapacity[]): number | null => {
+const getLockedSprintId = (
+  ticket: JiraTicket,
+  sprints: SprintWithCapacity[],
+  activeSprintIds: Set<number>
+): number | null => {
   if (!ticket.sprintIds || ticket.sprintIds.length === 0) return null;
 
+  // Build set of locked sprint IDs from selected sprints (active or closed)
   const lockedSprintIds = new Set(
     sprints.filter(isLockedSprint).map(s => s.id)
   );
 
+  // First check if ticket is in any active sprint (even if not selected)
+  for (const sprintId of ticket.sprintIds) {
+    if (activeSprintIds.has(sprintId)) {
+      return sprintId;
+    }
+  }
+
+  // Then check selected sprints that are locked (closed)
   for (const sprintId of ticket.sprintIds) {
     if (lockedSprintIds.has(sprintId)) {
       return sprintId;
@@ -187,15 +208,20 @@ const calculateWorstCase = (epic: JiraEpic, tickets: JiraTicket[]): number => {
 
 /**
  * Sort epics by priority override (if set) then by worst-case duration (longest first)
+ * When two epics have the same priority override, the one with longer worst-case is scheduled first
  */
 const sortEpics = (epics: JiraEpic[], worstCaseMap: Map<string, number>): JiraEpic[] => {
   return [...epics].sort((a, b) => {
     // Primary: priorityOverride (lower = higher priority)
+    // Epics with override come before those without
+    if (a.priorityOverride !== undefined && b.priorityOverride === undefined) return -1;
+    if (a.priorityOverride === undefined && b.priorityOverride !== undefined) return 1;
+
+    // If both have overrides, compare them (but fall through to secondary if equal)
     if (a.priorityOverride !== undefined && b.priorityOverride !== undefined) {
-      return a.priorityOverride - b.priorityOverride;
+      const priorityDiff = a.priorityOverride - b.priorityOverride;
+      if (priorityDiff !== 0) return priorityDiff;
     }
-    if (a.priorityOverride !== undefined) return -1;
-    if (b.priorityOverride !== undefined) return 1;
 
     // Secondary: worst-case duration (longest first)
     const aWorst = worstCaseMap.get(a.key) ?? 0;
@@ -690,15 +716,20 @@ const partitionEpicTickets = (
   epicKey: string,
   allTickets: JiraTicket[],
   selectedSprintIds: number[],
-  sprints: SprintWithCapacity[]
+  sprints: SprintWithCapacity[],
+  doneStatuses: string[] | undefined,
+  activeSprintIds: Set<number>
 ): PartitionedTickets => {
   const epicTickets = allTickets.filter(t => t.epicKey === epicKey);
   const previous: JiraTicket[] = [];
   const locked: { ticket: JiraTicket; sprintId: number }[] = [];
   const free: JiraTicket[] = [];
 
+  // Build set of selected sprint IDs for quick lookup
+  const selectedSprintIdSet = new Set(selectedSprintIds);
+
   for (const ticket of epicTickets) {
-    const isDone = isDoneStatus(ticket.status);
+    const isDone = isDoneStatus(ticket.status, doneStatuses);
     const inSelectedSprint = isInSelectedSprints(ticket, selectedSprintIds);
 
     // Previous block: Done tickets NOT in selected sprints (includes unassigned Done tickets)
@@ -707,10 +738,21 @@ const partitionEpicTickets = (
       continue;
     }
 
-    // Check if ticket is locked to an active/closed sprint
-    const lockedSprintId = getLockedSprintId(ticket, sprints);
-    if (lockedSprintId !== null) {
+    // Check if ticket is in an active sprint that is NOT selected
+    // These should go to Previous (they're being worked on but we're not displaying that sprint)
+    const ticketActiveSprintId = ticket.sprintIds?.find(id => activeSprintIds.has(id));
+    if (ticketActiveSprintId !== undefined && !selectedSprintIdSet.has(ticketActiveSprintId)) {
+      previous.push(ticket);
+      continue;
+    }
+
+    // Check if ticket is locked to an active/closed sprint that IS selected
+    const lockedSprintId = getLockedSprintId(ticket, sprints, activeSprintIds);
+    if (lockedSprintId !== null && selectedSprintIdSet.has(lockedSprintId)) {
       locked.push({ ticket, sprintId: lockedSprintId });
+    } else if (lockedSprintId !== null) {
+      // Locked to a sprint that's not selected (closed sprint not selected) -> Previous
+      previous.push(ticket);
     } else {
       // Free to schedule in future sprints
       free.push(ticket);
@@ -725,7 +767,10 @@ const partitionEpicTickets = (
  * Slots tickets into sprints while respecting capacity and sprint boundaries
  */
 export const scheduleTickets = (input: SchedulingInput): GanttData => {
-  const { epics, tickets, sprints, sprintCapacities, maxDevelopers, selectedSprintIds } = input;
+  const { epics, tickets, sprints, sprintCapacities, maxDevelopers, selectedSprintIds, doneStatuses, activeSprints } = input;
+
+  // Build set of active sprint IDs (includes all active sprints, even if not selected)
+  const activeSprintIds = new Set<number>(activeSprints?.map(s => s.id) ?? []);
 
   // Validate: Check for tickets > 10 points
   const oversizedTickets = tickets.filter(t => t.devDays > 10);
@@ -813,7 +858,9 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
       epic.key,
       tickets,
       effectiveSelectedSprintIds,
-      sprintsWithCapacity
+      sprintsWithCapacity,
+      doneStatuses,
+      activeSprintIds
     );
 
     // Store previous block

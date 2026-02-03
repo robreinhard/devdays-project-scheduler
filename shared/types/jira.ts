@@ -130,3 +130,39 @@ export interface JiraBoardResponse {
   name: string;
   type: string;
 }
+
+/**
+ * Board configuration types for column/status mapping
+ */
+export interface JiraStatusCategory {
+  id: number;
+  key: string;  // 'new' | 'indeterminate' | 'done'
+  name: string;
+}
+
+/**
+ * Status as returned in board column configuration (minimal info)
+ */
+export interface JiraBoardColumnStatus {
+  id: string;
+}
+
+export interface JiraBoardColumn {
+  name: string;
+  statuses: JiraBoardColumnStatus[];
+}
+
+export interface JiraBoardConfigResponse {
+  columnConfig: {
+    columns: JiraBoardColumn[];
+  };
+}
+
+/**
+ * Full status details from /rest/api/3/status endpoint
+ */
+export interface JiraStatusResponse {
+  id: string;
+  name: string;
+  statusCategory: JiraStatusCategory;
+}

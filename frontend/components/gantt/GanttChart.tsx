@@ -85,13 +85,31 @@ const GanttChart = ({ data, maxDevelopers, onDailyCapacityChange, sprintDateOver
     return Math.max(totalDays, workDays);
   }, [sprints, projectStartDate, totalDays]);
 
-  // Group epics by commit type for section dividers
+  // Sort epics by priority override (lower = higher priority), then by totalDevDays (longest first)
+  const sortEpicsByPriority = useCallback((epicList: ScheduledEpic[]): ScheduledEpic[] => {
+    return [...epicList].sort((a, b) => {
+      // Epics with priority override come first
+      if (a.priorityOverride !== undefined && b.priorityOverride === undefined) return -1;
+      if (a.priorityOverride === undefined && b.priorityOverride !== undefined) return 1;
+
+      // If both have overrides, compare them (fall through to secondary if equal)
+      if (a.priorityOverride !== undefined && b.priorityOverride !== undefined) {
+        const priorityDiff = a.priorityOverride - b.priorityOverride;
+        if (priorityDiff !== 0) return priorityDiff;
+      }
+
+      // Secondary: totalDevDays (longest first)
+      return b.totalDevDays - a.totalDevDays;
+    });
+  }, []);
+
+  // Group epics by commit type for section dividers, sorted by priority within each group
   const epicsByType = useMemo(() => {
-    const commits = epics.filter(e => e.commitType === 'commit');
-    const stretches = epics.filter(e => e.commitType === 'stretch');
-    const others = epics.filter(e => e.commitType === 'none');
+    const commits = sortEpicsByPriority(epics.filter(e => e.commitType === 'commit'));
+    const stretches = sortEpicsByPriority(epics.filter(e => e.commitType === 'stretch'));
+    const others = sortEpicsByPriority(epics.filter(e => e.commitType === 'none'));
     return { commits, stretches, others };
-  }, [epics]);
+  }, [epics, sortEpicsByPriority]);
 
   // Check if any epic has a Previous block (to add left offset)
   const hasPreviousBlocks = useMemo(() => {

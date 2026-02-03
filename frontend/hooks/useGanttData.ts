@@ -9,13 +9,17 @@ interface CachedData {
   epics: JiraEpic[];
   tickets: JiraTicket[];
   sprints: JiraSprint[];
+  doneStatuses: string[];
+  activeSprints: JiraSprint[];
   epicKeys: string[];
   sprintIds: number[];
+  boardId?: number;
 }
 
 interface GenerateOptions {
   sprintDateOverrides?: SprintDateOverride[];
   autoAdjustStartDate?: boolean;
+  boardId?: number;
 }
 
 interface UseGanttDataResult {
@@ -41,7 +45,7 @@ export const useGanttData = (): UseGanttDataResult => {
     maxDevelopers: number,
     options: GenerateOptions = {}
   ) => {
-    const { sprintDateOverrides = [], autoAdjustStartDate = true } = options;
+    const { sprintDateOverrides = [], autoAdjustStartDate = true, boardId } = options;
     setIsLoading(true);
     setError(null);
 
@@ -52,18 +56,21 @@ export const useGanttData = (): UseGanttDataResult => {
       const cached = cachedDataRef.current;
       const needsFetch = !cached ||
         cached.epicKeys.join(',') !== epicKeys.join(',') ||
-        cached.sprintIds.join(',') !== sprintIds.join(',');
+        cached.sprintIds.join(',') !== sprintIds.join(',') ||
+        cached.boardId !== boardId;
 
       let epics: JiraEpic[];
       let tickets: JiraTicket[];
       let sprints: JiraSprint[];
+      let doneStatuses: string[];
+      let activeSprints: JiraSprint[];
 
       if (needsFetch) {
         // Fetch data from API
         const response = await fetch('/api/gantt/data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ epicKeys, sprintIds }),
+          body: JSON.stringify({ epicKeys, sprintIds, boardId }),
         });
 
         const data = await response.json();
@@ -75,14 +82,18 @@ export const useGanttData = (): UseGanttDataResult => {
         epics = data.epics;
         tickets = data.tickets;
         sprints = data.sprints;
+        doneStatuses = data.doneStatuses;
+        activeSprints = data.activeSprints;
 
         // Cache the data
-        cachedDataRef.current = { epics, tickets, sprints, epicKeys, sprintIds };
+        cachedDataRef.current = { epics, tickets, sprints, doneStatuses, activeSprints, epicKeys, sprintIds, boardId };
       } else {
         // Use cached data
         epics = cached.epics;
         tickets = cached.tickets;
         sprints = cached.sprints;
+        doneStatuses = cached.doneStatuses;
+        activeSprints = cached.activeSprints;
       }
 
       // Apply auto-adjust and sprint date overrides before scheduling
@@ -97,6 +108,8 @@ export const useGanttData = (): UseGanttDataResult => {
         sprints: effectiveSprints,
         sprintCapacities,
         maxDevelopers,
+        doneStatuses,
+        activeSprints,
       });
 
       setGanttData(result);

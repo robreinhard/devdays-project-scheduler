@@ -4,6 +4,8 @@ import type {
   JiraIssueResponse,
   JiraProjectResponse,
   JiraBoardResponse,
+  JiraBoardConfigResponse,
+  JiraStatusResponse,
 } from '@/shared/types';
 
 /**
@@ -231,6 +233,55 @@ export class JiraClient {
     const endpoint = `/rest/agile/1.0/board?${params}`;
     const response = await this.fetch<{ values: JiraBoardResponse[] }>(endpoint);
     return response.values;
+  };
+
+  /**
+   * Get board configuration including column/status mappings
+   */
+  getBoardConfiguration = async (boardId?: number): Promise<JiraBoardConfigResponse> => {
+    const targetBoardId = boardId ?? this.config.boardId;
+    return this.fetch<JiraBoardConfigResponse>(`/rest/agile/1.0/board/${targetBoardId}/configuration`);
+  };
+
+  /**
+   * Get a single status by ID with full details including statusCategory
+   */
+  getStatusById = async (statusId: string): Promise<JiraStatusResponse> => {
+    return this.fetch<JiraStatusResponse>(`/rest/api/3/status/${statusId}`);
+  };
+
+  /**
+   * Get all "done" status names for a board based on its column configuration
+   * Fetches board config to get status IDs, then fetches each status detail in parallel
+   * Returns status names where statusCategory.key === 'done'
+   */
+  getDoneStatuses = async (boardId?: number): Promise<string[]> => {
+    const config = await this.getBoardConfiguration(boardId);
+
+    // Collect unique status IDs from the board columns
+    const boardStatusIds = new Set<string>();
+    for (const column of config.columnConfig.columns) {
+      for (const status of column.statuses) {
+        boardStatusIds.add(status.id);
+      }
+    }
+
+    // Fetch status details in parallel for just the board's statuses
+    const statusDetails = await Promise.all(
+      Array.from(boardStatusIds).map(async (id) => {
+        try {
+          return await this.getStatusById(id);
+        } catch (error) {
+          console.error(`Failed to fetch status ${id}:`, error);
+          return null;
+        }
+      })
+    );
+
+    // Filter to statuses with statusCategory.key === 'done'
+    return statusDetails
+      .filter((s): s is JiraStatusResponse => s !== null && s.statusCategory.key === 'done')
+      .map(s => s.name);
   };
 
   /**

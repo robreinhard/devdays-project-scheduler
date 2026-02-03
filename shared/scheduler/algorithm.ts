@@ -106,9 +106,16 @@ const buildDailyCapacityMap = (
 
 /**
  * Check if a ticket status indicates it's "done"
- * Matches: done, resolved, closed (case-insensitive)
+ * If doneStatuses is provided (from board config), uses exact match against those.
+ * Otherwise falls back to legacy matching: done, resolved, closed (case-insensitive)
  */
-const isDoneStatus = (status: string): boolean => {
+const isDoneStatus = (status: string, doneStatuses?: string[]): boolean => {
+  if (doneStatuses && doneStatuses.length > 0) {
+    // Use board config: exact match (case-insensitive)
+    const lowerStatus = status.toLowerCase();
+    return doneStatuses.some(ds => ds.toLowerCase() === lowerStatus);
+  }
+  // Fallback: legacy matching
   const lowerStatus = status.toLowerCase();
   return lowerStatus.includes('done') ||
          lowerStatus.includes('resolved') ||
@@ -690,7 +697,8 @@ const partitionEpicTickets = (
   epicKey: string,
   allTickets: JiraTicket[],
   selectedSprintIds: number[],
-  sprints: SprintWithCapacity[]
+  sprints: SprintWithCapacity[],
+  doneStatuses?: string[]
 ): PartitionedTickets => {
   const epicTickets = allTickets.filter(t => t.epicKey === epicKey);
   const previous: JiraTicket[] = [];
@@ -698,7 +706,7 @@ const partitionEpicTickets = (
   const free: JiraTicket[] = [];
 
   for (const ticket of epicTickets) {
-    const isDone = isDoneStatus(ticket.status);
+    const isDone = isDoneStatus(ticket.status, doneStatuses);
     const inSelectedSprint = isInSelectedSprints(ticket, selectedSprintIds);
 
     // Previous block: Done tickets NOT in selected sprints (includes unassigned Done tickets)
@@ -725,7 +733,7 @@ const partitionEpicTickets = (
  * Slots tickets into sprints while respecting capacity and sprint boundaries
  */
 export const scheduleTickets = (input: SchedulingInput): GanttData => {
-  const { epics, tickets, sprints, sprintCapacities, maxDevelopers, selectedSprintIds } = input;
+  const { epics, tickets, sprints, sprintCapacities, maxDevelopers, selectedSprintIds, doneStatuses } = input;
 
   // Validate: Check for tickets > 10 points
   const oversizedTickets = tickets.filter(t => t.devDays > 10);
@@ -813,7 +821,8 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
       epic.key,
       tickets,
       effectiveSelectedSprintIds,
-      sprintsWithCapacity
+      sprintsWithCapacity,
+      doneStatuses
     );
 
     // Store previous block

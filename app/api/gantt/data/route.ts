@@ -5,18 +5,20 @@ import type { JiraEpic, JiraTicket, JiraSprint } from '@/shared/types';
 interface DataRequest {
   epicKeys: string[];
   sprintIds: number[];
+  boardId?: number;
 }
 
 export interface GanttDataResponse {
   epics: JiraEpic[];
   tickets: JiraTicket[];
   sprints: JiraSprint[];
+  doneStatuses: string[];
 }
 
 export const POST = async (request: NextRequest) => {
   try {
     const body: DataRequest = await request.json();
-    const { epicKeys, sprintIds } = body;
+    const { epicKeys, sprintIds, boardId } = body;
 
     // Validate input
     if (!epicKeys || epicKeys.length === 0) {
@@ -35,6 +37,9 @@ export const POST = async (request: NextRequest) => {
 
     const client = getJiraClient();
     const fieldConfig = client.getFieldConfig();
+
+    // Fetch done statuses from board configuration
+    const doneStatuses = await client.getDoneStatuses(boardId);
 
     // Fetch all epics and their tickets
     const epics: JiraEpic[] = [];
@@ -79,6 +84,7 @@ export const POST = async (request: NextRequest) => {
       epics,
       tickets: allTickets,
       sprints: selectedSprints,
+      doneStatuses,
     };
 
     return NextResponse.json(response);

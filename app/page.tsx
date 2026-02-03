@@ -32,6 +32,7 @@ const HomeContent = () => {
     sprintDateOverrides,
     autoAdjustStartDate,
     sidebarCollapsed,
+    boardId,
     setDailyCapacityOverride,
     setSidebarCollapsed,
   } = useAppState();
@@ -118,9 +119,9 @@ const HomeContent = () => {
     if (hasChanged) {
       prevValuesRef.current = currentValues;
       const capacitiesWithOverrides = buildCapacitiesWithOverrides();
-      generate(epicKeys, capacitiesWithOverrides, maxDevelopers, { sprintDateOverrides, autoAdjustStartDate });
+      generate(epicKeys, capacitiesWithOverrides, maxDevelopers, { sprintDateOverrides, autoAdjustStartDate, boardId });
     }
-  }, [epicKeys, sprintCapacities, maxDevelopers, dailyCapacityOverrides, sprintDateOverrides, autoAdjustStartDate, hasSprintOverlap, buildCapacitiesWithOverrides, generate, clear, ganttData]);
+  }, [epicKeys, sprintCapacities, maxDevelopers, dailyCapacityOverrides, sprintDateOverrides, autoAdjustStartDate, hasSprintOverlap, boardId, buildCapacitiesWithOverrides, generate, clear, ganttData]);
 
   // Handle daily capacity changes from the gantt chart
   const handleDailyCapacityChange = useCallback((dayIndex: number, date: string, capacity: number) => {
@@ -141,8 +142,8 @@ const HomeContent = () => {
 
     clearCache();
     const capacitiesWithOverrides = buildCapacitiesWithOverrides();
-    generate(epicKeys, capacitiesWithOverrides, maxDevelopers, { sprintDateOverrides, autoAdjustStartDate });
-  }, [epicKeys, sprintCapacities, maxDevelopers, hasSprintOverlap, isLoading, clearCache, buildCapacitiesWithOverrides, generate, sprintDateOverrides, autoAdjustStartDate]);
+    generate(epicKeys, capacitiesWithOverrides, maxDevelopers, { sprintDateOverrides, autoAdjustStartDate, boardId });
+  }, [epicKeys, sprintCapacities, maxDevelopers, hasSprintOverlap, isLoading, clearCache, buildCapacitiesWithOverrides, generate, sprintDateOverrides, autoAdjustStartDate, boardId]);
 
   // Determine what message to show when no chart
   const getEmptyStateMessage = () => {

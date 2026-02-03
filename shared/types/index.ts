@@ -12,6 +12,10 @@ export type {
   JiraSearchResponse,
   JiraProjectResponse,
   JiraBoardResponse,
+  JiraStatusCategory,
+  JiraBoardStatus,
+  JiraBoardColumn,
+  JiraBoardConfigResponse,
 } from './jira';
 
 // Scheduling types

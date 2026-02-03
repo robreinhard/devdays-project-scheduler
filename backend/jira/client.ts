@@ -4,6 +4,7 @@ import type {
   JiraIssueResponse,
   JiraProjectResponse,
   JiraBoardResponse,
+  JiraBoardConfigResponse,
 } from '@/shared/types';
 
 /**
@@ -231,6 +232,34 @@ export class JiraClient {
     const endpoint = `/rest/agile/1.0/board?${params}`;
     const response = await this.fetch<{ values: JiraBoardResponse[] }>(endpoint);
     return response.values;
+  };
+
+  /**
+   * Get board configuration including column/status mappings
+   * Used to determine which statuses are "done" for this board
+   */
+  getBoardConfiguration = async (boardId?: number): Promise<JiraBoardConfigResponse> => {
+    const targetBoardId = boardId ?? this.config.boardId;
+    return this.fetch<JiraBoardConfigResponse>(`/rest/agile/1.0/board/${targetBoardId}/configuration`);
+  };
+
+  /**
+   * Get all "done" status names for a board based on its column configuration
+   * Returns status names where statusCategory.key === 'done'
+   */
+  getDoneStatuses = async (boardId?: number): Promise<string[]> => {
+    const config = await this.getBoardConfiguration(boardId);
+    const doneStatuses: string[] = [];
+
+    for (const column of config.columnConfig.columns) {
+      for (const status of column.statuses) {
+        if (status.statusCategory.key === 'done') {
+          doneStatuses.push(status.name);
+        }
+      }
+    }
+
+    return doneStatuses;
   };
 
   /**

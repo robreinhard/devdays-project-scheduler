@@ -213,10 +213,23 @@ const DependencyLines = ({
       }
     }
 
-    // Sort epics to match render order in GanttChart: commits, then stretches, then others
-    const commitEpics = epics.filter(e => e.commitType === 'commit');
-    const stretchEpics = epics.filter(e => e.commitType === 'stretch');
-    const otherEpics = epics.filter(e => e.commitType === 'none');
+    // Sort epics by priority override (lower = higher priority), then by totalDevDays (longest first)
+    const sortByPriority = (epicList: ScheduledEpic[]): ScheduledEpic[] => {
+      return [...epicList].sort((a, b) => {
+        if (a.priorityOverride !== undefined && b.priorityOverride === undefined) return -1;
+        if (a.priorityOverride === undefined && b.priorityOverride !== undefined) return 1;
+        if (a.priorityOverride !== undefined && b.priorityOverride !== undefined) {
+          const priorityDiff = a.priorityOverride - b.priorityOverride;
+          if (priorityDiff !== 0) return priorityDiff;
+        }
+        return b.totalDevDays - a.totalDevDays;
+      });
+    };
+
+    // Sort epics to match render order in GanttChart: commits, then stretches, then others (sorted by priority within each)
+    const commitEpics = sortByPriority(epics.filter(e => e.commitType === 'commit'));
+    const stretchEpics = sortByPriority(epics.filter(e => e.commitType === 'stretch'));
+    const otherEpics = sortByPriority(epics.filter(e => e.commitType === 'none'));
     const sortedEpics = [...commitEpics, ...stretchEpics, ...otherEpics];
 
     // Calculate Y offset for each ticket row

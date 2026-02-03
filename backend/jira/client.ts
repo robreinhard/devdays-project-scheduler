@@ -244,31 +244,21 @@ export class JiraClient {
   };
 
   /**
-   * Get all statuses with their full details including statusCategory
+   * Get a single status by ID with full details including statusCategory
    */
-  getAllStatuses = async (): Promise<JiraStatusResponse[]> => {
-    return this.fetch<JiraStatusResponse[]>('/rest/api/3/status');
+  getStatusById = async (statusId: string): Promise<JiraStatusResponse> => {
+    return this.fetch<JiraStatusResponse>(`/rest/api/3/status/${statusId}`);
   };
 
   /**
    * Get all "done" status names for a board based on its column configuration
-   * Fetches board config to get status IDs, then fetches status details to get statusCategory
+   * Fetches board config to get status IDs, then fetches each status detail in parallel
    * Returns status names where statusCategory.key === 'done'
    */
   getDoneStatuses = async (boardId?: number): Promise<string[]> => {
-    // Fetch board config and all statuses in parallel
-    const [config, allStatuses] = await Promise.all([
-      this.getBoardConfiguration(boardId),
-      this.getAllStatuses(),
-    ]);
+    const config = await this.getBoardConfiguration(boardId);
 
-    // Build a map of status ID -> status details
-    const statusMap = new Map<string, JiraStatusResponse>();
-    for (const status of allStatuses) {
-      statusMap.set(status.id, status);
-    }
-
-    // Collect all status IDs from the board columns
+    // Collect unique status IDs from the board columns
     const boardStatusIds = new Set<string>();
     for (const column of config.columnConfig.columns) {
       for (const status of column.statuses) {
@@ -276,16 +266,22 @@ export class JiraClient {
       }
     }
 
-    // Find statuses that are on this board and have statusCategory.key === 'done'
-    const doneStatuses: string[] = [];
-    for (const statusId of boardStatusIds) {
-      const status = statusMap.get(statusId);
-      if (status && status.statusCategory.key === 'done') {
-        doneStatuses.push(status.name);
-      }
-    }
+    // Fetch status details in parallel for just the board's statuses
+    const statusDetails = await Promise.all(
+      Array.from(boardStatusIds).map(async (id) => {
+        try {
+          return await this.getStatusById(id);
+        } catch (error) {
+          console.error(`Failed to fetch status ${id}:`, error);
+          return null;
+        }
+      })
+    );
 
-    return doneStatuses;
+    // Filter to statuses with statusCategory.key === 'done'
+    return statusDetails
+      .filter((s): s is JiraStatusResponse => s !== null && s.statusCategory.key === 'done')
+      .map(s => s.name);
   };
 
   /**

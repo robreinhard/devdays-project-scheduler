@@ -140,19 +140,29 @@ export interface JiraStatusCategory {
   name: string;
 }
 
-export interface JiraBoardStatus {
+/**
+ * Status as returned in board column configuration (minimal info)
+ */
+export interface JiraBoardColumnStatus {
   id: string;
-  name: string;
-  statusCategory: JiraStatusCategory;
 }
 
 export interface JiraBoardColumn {
   name: string;
-  statuses: JiraBoardStatus[];
+  statuses: JiraBoardColumnStatus[];
 }
 
 export interface JiraBoardConfigResponse {
   columnConfig: {
     columns: JiraBoardColumn[];
   };
+}
+
+/**
+ * Full status details from /rest/api/3/status endpoint
+ */
+export interface JiraStatusResponse {
+  id: string;
+  name: string;
+  statusCategory: JiraStatusCategory;
 }

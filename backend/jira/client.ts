@@ -5,6 +5,7 @@ import type {
   JiraProjectResponse,
   JiraBoardResponse,
   JiraBoardConfigResponse,
+  JiraStatusResponse,
 } from '@/shared/types';
 
 /**
@@ -236,7 +237,6 @@ export class JiraClient {
 
   /**
    * Get board configuration including column/status mappings
-   * Used to determine which statuses are "done" for this board
    */
   getBoardConfiguration = async (boardId?: number): Promise<JiraBoardConfigResponse> => {
     const targetBoardId = boardId ?? this.config.boardId;
@@ -244,18 +244,44 @@ export class JiraClient {
   };
 
   /**
+   * Get all statuses with their full details including statusCategory
+   */
+  getAllStatuses = async (): Promise<JiraStatusResponse[]> => {
+    return this.fetch<JiraStatusResponse[]>('/rest/api/3/status');
+  };
+
+  /**
    * Get all "done" status names for a board based on its column configuration
+   * Fetches board config to get status IDs, then fetches status details to get statusCategory
    * Returns status names where statusCategory.key === 'done'
    */
   getDoneStatuses = async (boardId?: number): Promise<string[]> => {
-    const config = await this.getBoardConfiguration(boardId);
-    const doneStatuses: string[] = [];
+    // Fetch board config and all statuses in parallel
+    const [config, allStatuses] = await Promise.all([
+      this.getBoardConfiguration(boardId),
+      this.getAllStatuses(),
+    ]);
 
+    // Build a map of status ID -> status details
+    const statusMap = new Map<string, JiraStatusResponse>();
+    for (const status of allStatuses) {
+      statusMap.set(status.id, status);
+    }
+
+    // Collect all status IDs from the board columns
+    const boardStatusIds = new Set<string>();
     for (const column of config.columnConfig.columns) {
       for (const status of column.statuses) {
-        if (status.statusCategory.key === 'done') {
-          doneStatuses.push(status.name);
-        }
+        boardStatusIds.add(status.id);
+      }
+    }
+
+    // Find statuses that are on this board and have statusCategory.key === 'done'
+    const doneStatuses: string[] = [];
+    for (const statusId of boardStatusIds) {
+      const status = statusMap.get(statusId);
+      if (status && status.statusCategory.key === 'done') {
+        doneStatuses.push(status.name);
       }
     }
 

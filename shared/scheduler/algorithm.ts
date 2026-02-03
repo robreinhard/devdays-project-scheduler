@@ -208,15 +208,20 @@ const calculateWorstCase = (epic: JiraEpic, tickets: JiraTicket[]): number => {
 
 /**
  * Sort epics by priority override (if set) then by worst-case duration (longest first)
+ * When two epics have the same priority override, the one with longer worst-case is scheduled first
  */
 const sortEpics = (epics: JiraEpic[], worstCaseMap: Map<string, number>): JiraEpic[] => {
   return [...epics].sort((a, b) => {
     // Primary: priorityOverride (lower = higher priority)
+    // Epics with override come before those without
+    if (a.priorityOverride !== undefined && b.priorityOverride === undefined) return -1;
+    if (a.priorityOverride === undefined && b.priorityOverride !== undefined) return 1;
+
+    // If both have overrides, compare them (but fall through to secondary if equal)
     if (a.priorityOverride !== undefined && b.priorityOverride !== undefined) {
-      return a.priorityOverride - b.priorityOverride;
+      const priorityDiff = a.priorityOverride - b.priorityOverride;
+      if (priorityDiff !== 0) return priorityDiff;
     }
-    if (a.priorityOverride !== undefined) return -1;
-    if (b.priorityOverride !== undefined) return 1;
 
     // Secondary: worst-case duration (longest first)
     const aWorst = worstCaseMap.get(a.key) ?? 0;

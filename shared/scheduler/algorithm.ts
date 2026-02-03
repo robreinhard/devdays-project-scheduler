@@ -725,6 +725,9 @@ const partitionEpicTickets = (
   const locked: { ticket: JiraTicket; sprintId: number }[] = [];
   const free: JiraTicket[] = [];
 
+  // Build set of selected sprint IDs for quick lookup
+  const selectedSprintIdSet = new Set(selectedSprintIds);
+
   for (const ticket of epicTickets) {
     const isDone = isDoneStatus(ticket.status, doneStatuses);
     const inSelectedSprint = isInSelectedSprints(ticket, selectedSprintIds);
@@ -735,10 +738,21 @@ const partitionEpicTickets = (
       continue;
     }
 
-    // Check if ticket is locked to an active/closed sprint (including active sprints not selected)
+    // Check if ticket is in an active sprint that is NOT selected
+    // These should go to Previous (they're being worked on but we're not displaying that sprint)
+    const ticketActiveSprintId = ticket.sprintIds?.find(id => activeSprintIds.has(id));
+    if (ticketActiveSprintId !== undefined && !selectedSprintIdSet.has(ticketActiveSprintId)) {
+      previous.push(ticket);
+      continue;
+    }
+
+    // Check if ticket is locked to an active/closed sprint that IS selected
     const lockedSprintId = getLockedSprintId(ticket, sprints, activeSprintIds);
-    if (lockedSprintId !== null) {
+    if (lockedSprintId !== null && selectedSprintIdSet.has(lockedSprintId)) {
       locked.push({ ticket, sprintId: lockedSprintId });
+    } else if (lockedSprintId !== null) {
+      // Locked to a sprint that's not selected (closed sprint not selected) -> Previous
+      previous.push(ticket);
     } else {
       // Free to schedule in future sprints
       free.push(ticket);

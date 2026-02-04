@@ -8,7 +8,8 @@ import Typography from '@mui/material/Typography';
 import Fab from '@mui/material/Fab';
 import Tooltip from '@mui/material/Tooltip';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { Header, Sidebar, MainContent, SidebarContent, GanttChart } from '@/frontend/components';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import { Header, Sidebar, MainContent, SidebarContent, GanttChart, SlotTicketsDialog } from '@/frontend/components';
 import { useAppState, useGanttData } from '@/frontend/hooks';
 import type { DailyCapacity } from '@/shared/types';
 
@@ -22,6 +23,7 @@ const HomeContent = () => {
     connected: false,
   });
   const [hasSprintOverlap, setHasSprintOverlap] = useState(false);
+  const [slotDialogOpen, setSlotDialogOpen] = useState(false);
 
   const {
     epicKeys,
@@ -239,6 +241,25 @@ const HomeContent = () => {
         </MainContent>
       </Box>
 
+      {/* Slot Tickets FAB */}
+      <Tooltip title="Slot tickets to sprints">
+        <span>
+          <Fab
+            color="secondary"
+            aria-label="slot tickets"
+            onClick={() => setSlotDialogOpen(true)}
+            disabled={!ganttData}
+            sx={{
+              position: 'fixed',
+              bottom: 24,
+              right: 88,
+            }}
+          >
+            <AssignmentIcon />
+          </Fab>
+        </span>
+      </Tooltip>
+
       {/* Refresh FAB */}
       <Tooltip title="Refresh all data from JIRA">
         <span>
@@ -257,6 +278,14 @@ const HomeContent = () => {
           </Fab>
         </span>
       </Tooltip>
+
+      {/* Slot Tickets Dialog */}
+      <SlotTicketsDialog
+        open={slotDialogOpen}
+        onClose={() => setSlotDialogOpen(false)}
+        ganttData={ganttData}
+        sprints={ganttData?.sprints ?? []}
+      />
     </Box>
   );
 };

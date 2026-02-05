@@ -505,7 +505,7 @@ const SlotTicketsDialog = ({ open, onClose, ganttData }: SlotTicketsDialogProps)
               placeholder='Type "slot tickets" to confirm'
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              sx={{ width: 220 }}
+              sx={{ width: 300 }}
               disabled={isSlotting}
             />
             <Button

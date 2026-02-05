@@ -242,6 +242,47 @@ Future Block:
 
 ---
 
+## Pinned Start Date Constraint
+
+### Configuration
+
+Set the environment variable `JIRA_FIELD_CUSTOM_PINNED_START_DATE` to the custom field ID (e.g., `customfield_10050`) to enable this feature. If unset, the feature is disabled entirely and no field is fetched from JIRA.
+
+### Behavior
+
+When a free ticket (Phase 3) has a `pinnedStartDate` value from JIRA, the algorithm pins it to start on that exact date. This is **not** "no earlier than" -- the ticket MUST start on that specific day. If any constraint makes this impossible, the algorithm throws an error.
+
+Only the pinned ticket itself is affected. Other tickets in the same epic are NOT rearranged or shifted to accommodate it. Tickets that depend on the pinned ticket will naturally wait for it to finish (standard dependency behavior), but non-dependent tickets schedule normally.
+
+Pinned start dates only apply to free tickets (Phase 3). Locked tickets in active/closed sprints are unaffected.
+
+### Error Conditions
+
+| Condition | Error Message Pattern |
+|-----------|----------------------|
+| Pinned date not a work day | `Ticket {key} has pinned start date {date} which is not a work day in any selected sprint` |
+| Pinned date in non-future sprint | `Ticket {key} has pinned start date {date} which falls in {state} sprint {name}, not a future sprint` |
+| Zero capacity on pinned date | `Ticket {key} has pinned start date {date} but there is zero capacity on that day` |
+| Blocker ends after pinned date | `Ticket {key} has pinned start date {date} but is blocked by {blockerKey} which doesn't finish until {blockerEndDate}` |
+| Ticket crosses sprint boundary | `Ticket {key} ({devDays}d) starts on pinned start date {date} but would cross into the next sprint` |
+| No capacity during ticket span | `Ticket {key} has pinned start date {date} but day {problemDate} has no remaining capacity` |
+
+### Edge Cases
+
+| Scenario | Behavior |
+|----------|----------|
+| Pinned date beyond all selected sprints | Ticket goes to Future block (unslotted) -- not an error |
+| Env var not set | Feature disabled entirely; no field fetched from JIRA |
+| Field configured but ticket value is null | No constraint applied, normal scheduling |
+| Multiple tickets pinned to same date | Both scheduled if capacity allows; error if capacity exhausted |
+| Ticket with pinned start has no blockers | Pinned to exact date, capacity checked |
+
+### Interaction with Dependencies
+
+If a pinned ticket has blockers, the algorithm verifies that all blockers finish before the pinned start date. If any blocker ends after the pinned date, an error is thrown (the blocker and pin constraints are irreconcilable).
+
+---
+
 ## Constraints & Edge Cases
 
 | Scenario | Behavior |

@@ -375,6 +375,20 @@ const getEpicTicketsTopological = (epicKey: string, allTickets: JiraTicket[]): T
 };
 
 /**
+ * Convert a date string to an exact day index in the dailyCapacity array
+ * Returns null if the date is not found (weekend, gap, or beyond sprints)
+ */
+const getDayIndexForDate = (dateStr: string, dailyCapacity: DayCapacity[]): number | null => {
+  const targetDate = parseDate(dateStr).toISODate()!;
+  for (let i = 0; i < dailyCapacity.length; i++) {
+    if (dailyCapacity[i].date === targetDate) {
+      return i;
+    }
+  }
+  return null;
+};
+
+/**
  * Find the first day of the next sprint after the given day index
  */
 const findNextSprintStart = (
@@ -1129,6 +1143,102 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
         continue;
       }
 
+      // Get topological info for this ticket (used by both pinned and normal paths)
+      const epicFreeTickets = allFreeTickets.filter(ft => ft.epicKey === epicKey).map(ft => ft.ticket);
+      const topoTicket = getEpicTicketsTopological(epicKey, epicFreeTickets).find(t => t.key === ticket.key);
+
+      // ---- Pinned Start Date Handling ----
+      if (ticket.pinnedStartDate) {
+        const pinnedDayIndex = getDayIndexForDate(ticket.pinnedStartDate, dailyCapacity);
+        const pinnedDateStr = parseDate(ticket.pinnedStartDate).toISODate()!;
+
+        if (pinnedDayIndex === null) {
+          // Date not found in dailyCapacity — check if it's beyond all sprints (→ unslotted)
+          const lastDate = dailyCapacity.length > 0 ? dailyCapacity[dailyCapacity.length - 1].date : '';
+          if (lastDate && pinnedDateStr > lastDate) {
+            // Beyond all selected sprints → Future block (not an error)
+            unslottedTicketKeys.add(ticket.key);
+            pendingTickets.delete(ticket.key);
+            epicUnslottedTickets.get(epicKey)!.push(ticket);
+            madeProgress = true;
+            continue;
+          }
+          throw new Error(
+            `Ticket ${ticket.key} has pinned start date ${pinnedDateStr} which is not a work day in any selected sprint`
+          );
+        }
+
+        // Verify the pinned day is in a future sprint
+        const pinnedSprint = sprintsWithCapacity.find(s => s.id === dailyCapacity[pinnedDayIndex].sprintId);
+        if (pinnedSprint && pinnedSprint.state !== 'future') {
+          throw new Error(
+            `Ticket ${ticket.key} has pinned start date ${pinnedDateStr} which falls in ${pinnedSprint.state} sprint ${pinnedSprint.name}, not a future sprint`
+          );
+        }
+
+        // Check capacity on the pinned start date
+        if (dailyCapacity[pinnedDayIndex].remainingCapacity <= 0) {
+          throw new Error(
+            `Ticket ${ticket.key} has pinned start date ${pinnedDateStr} but there is zero capacity on that day`
+          );
+        }
+
+        // Check blocker conflicts
+        for (const blockerKey of ticket.blockedBy ?? []) {
+          const blockerEndDay = globalTicketEndDays.get(blockerKey);
+          if (blockerEndDay !== undefined && blockerEndDay > pinnedDayIndex) {
+            const blockerEndDate = getEndDateFromDayIndex(blockerEndDay, dailyCapacity);
+            throw new Error(
+              `Ticket ${ticket.key} has pinned start date ${pinnedDateStr} but is blocked by ${blockerKey} which doesn't finish until ${blockerEndDate}`
+            );
+          }
+        }
+
+        const pinnedEndDay = pinnedDayIndex + ticket.devDays;
+
+        // Check sprint crossing
+        if (ticketCrossesSprintBoundary(pinnedDayIndex, pinnedEndDay, dailyCapacity)) {
+          throw new Error(
+            `Ticket ${ticket.key} (${ticket.devDays}d) starts on pinned start date ${pinnedDateStr} but would cross into the next sprint`
+          );
+        }
+
+        // Check capacity for ALL days in range
+        for (let d = pinnedDayIndex; d < pinnedEndDay && d < dailyCapacity.length; d++) {
+          if (dailyCapacity[d].remainingCapacity <= 0) {
+            throw new Error(
+              `Ticket ${ticket.key} has pinned start date ${pinnedDateStr} but day ${dailyCapacity[d].date} has no remaining capacity`
+            );
+          }
+        }
+
+        // Schedule at pinned position
+        const pinnedSprintId = dailyCapacity[pinnedDayIndex].sprintId;
+        for (let d = pinnedDayIndex; d < pinnedEndDay && d < dailyCapacity.length; d++) {
+          dailyCapacity[d].remainingCapacity -= 1;
+        }
+
+        globalTicketEndDays.set(ticket.key, pinnedEndDay);
+
+        allScheduledTickets.push({
+          ...ticket,
+          startDay: pinnedDayIndex,
+          endDay: pinnedEndDay,
+          startDate: getDateFromDayIndex(pinnedDayIndex, dailyCapacity),
+          endDate: getEndDateFromDayIndex(pinnedEndDay, dailyCapacity),
+          sprintId: pinnedSprintId,
+          parallelGroup: topoTicket?.level ?? 0,
+          criticalPathWeight: topoTicket?.downstreamWeight ?? ticket.devDays,
+          isOnCriticalPath: false,
+        });
+
+        scheduledTicketKeys.add(ticket.key);
+        pendingTickets.delete(ticket.key);
+        madeProgress = true;
+        continue;
+      }
+
+      // ---- Normal (non-pinned) scheduling ----
       // Find earliest available slot
       const earliestStart = getEarliestStartDay(ticket);
       const slotStart = findNextAvailableSlot(earliestStart, ticket.devDays, dailyCapacity);
@@ -1162,10 +1272,6 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
 
       // Track end day globally
       globalTicketEndDays.set(ticket.key, endDay);
-
-      // Get topological info for this ticket
-      const epicFreeTickets = allFreeTickets.filter(ft => ft.epicKey === epicKey).map(ft => ft.ticket);
-      const topoTicket = getEpicTicketsTopological(epicKey, epicFreeTickets).find(t => t.key === ticket.key);
 
       allScheduledTickets.push({
         ...ticket,

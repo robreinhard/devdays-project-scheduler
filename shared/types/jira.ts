@@ -30,6 +30,7 @@ export interface JiraTicket {
   assigneeAvatarUrl?: string; // Profile photo URL from JIRA
   isMissingEstimate: boolean; // True if devDays was defaulted (no estimate in JIRA)
   sprintIds?: number[];  // Sprint IDs from JIRA (ticket can be in multiple sprints)
+  pinnedStartDate?: string; // ISO date string from JIRA custom field - pins ticket to exact start date
 }
 
 export interface JiraSprint {

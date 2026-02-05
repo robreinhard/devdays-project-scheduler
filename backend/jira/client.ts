@@ -39,7 +39,7 @@ export const getJiraConfig = (): JiraConfig => {
   const fieldEpicLink = process.env.JIRA_FIELD_EPIC_LINK ?? 'customfield_10014';
   const fieldPlannedStartDate = process.env.JIRA_FIELD_PLANNED_START_DATE; // Optional
   const fieldPlannedEndDate = process.env.JIRA_FIELD_PLANNED_END_DATE; // Optional
-  const fieldPinnedStartDate = process.env.JIRA_FIELD_CUSTOM_PINNED_START_DATE; // Optional
+  const fieldPinnedStartDate = process.env.JIRA_FIELD_PINNED_START_DATE; // Optional
   const boardId = process.env.JIRA_BOARD_ID;
 
   if (!baseUrl || !email || !apiToken || !fieldDevDays || !boardId) {

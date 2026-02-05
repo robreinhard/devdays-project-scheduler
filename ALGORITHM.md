@@ -246,7 +246,7 @@ Future Block:
 
 ### Configuration
 
-Set the environment variable `JIRA_FIELD_CUSTOM_PINNED_START_DATE` to the custom field ID (e.g., `customfield_10050`) to enable this feature. If unset, the feature is disabled entirely and no field is fetched from JIRA.
+Set the environment variable `JIRA_FIELD_PINNED_START_DATE` to the custom field ID (e.g., `customfield_10050`) to enable this feature. If unset, the feature is disabled entirely and no field is fetched from JIRA.
 
 ### Behavior
 

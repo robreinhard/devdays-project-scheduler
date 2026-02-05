@@ -1018,6 +1018,7 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
         criticalPathWeight: ticket.devDays,
         isOnCriticalPath: false,
         hasConstraintViolation,
+        isLocked: true,
       });
     }
   }

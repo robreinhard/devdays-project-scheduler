@@ -5,6 +5,7 @@ import Box from '@mui/material/Box';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import Link from '@mui/material/Link';
+import LockIcon from '@mui/icons-material/Lock';
 import type {ScheduledTicket} from '@/shared/types';
 import {parseDate} from '@/shared/utils/dates';
 
@@ -98,6 +99,14 @@ const TicketBar = ({ticket, dayWidth, rowHeight, epicColor, chartLeftOffset = 0}
                     sx={{color: '#000', fontWeight: 'bold', display: 'block', mt: 0.5}}
                 >
                     ★ Critical Path
+                </Typography>
+            )}
+            {ticket.isLocked && (
+                <Typography
+                    variant="caption"
+                    sx={{color: 'text.secondary', fontWeight: 'bold', display: 'block', mt: 0.5}}
+                >
+                    🔒 Locked to sprint (active/closed)
                 </Typography>
             )}
             <Box sx={{mt: 1, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 0.5}}>
@@ -194,10 +203,21 @@ const TicketBar = ({ticket, dayWidth, rowHeight, epicColor, chartLeftOffset = 0}
                         textOverflow: 'ellipsis',
                         fontSize: 10,
                         textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                        flexGrow: 1,
                     }}
                 >
                     {ticket.key}
                 </Typography>
+                {ticket.isLocked && (
+                    <LockIcon
+                        sx={{
+                            fontSize: 12,
+                            color: 'rgba(255,255,255,0.85)',
+                            flexShrink: 0,
+                            ml: 0.25,
+                        }}
+                    />
+                )}
             </Box>
         </Tooltip>
     );

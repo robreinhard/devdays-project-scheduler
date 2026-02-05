@@ -23,6 +23,7 @@ export interface FieldConfig {
   epicLink: string;
   plannedStartDate?: string; // Optional: custom field to write scheduled start date
   plannedEndDate?: string; // Optional: custom field to write scheduled end date
+  pinnedStartDate?: string; // Optional: custom field for pinning ticket to exact start date
 }
 
 /**
@@ -140,6 +141,12 @@ export const mapToTicket = (
   // Extract blocker relationships from issue links
   const blockedBy = extractBlockedBy(issue.fields.issuelinks);
 
+  // Extract pinned start date from custom field
+  const pinnedStartDateValue = fieldConfig.pinnedStartDate
+    ? issue.fields[fieldConfig.pinnedStartDate]
+    : undefined;
+  const pinnedStartDate = typeof pinnedStartDateValue === 'string' ? pinnedStartDateValue : undefined;
+
   // Extract sprint IDs from sprint field
   const sprintField = issue.fields[fieldConfig.sprint];
   const sprintIds = extractSprintIds(sprintField);
@@ -155,6 +162,7 @@ export const mapToTicket = (
     assigneeAvatarUrl: issue.fields.assignee?.avatarUrls?.['24x24'],
     isMissingEstimate: !hasEstimate,
     sprintIds,
+    pinnedStartDate,
   };
 };
 

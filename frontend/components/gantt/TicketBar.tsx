@@ -106,7 +106,7 @@ const TicketBar = ({ticket, dayWidth, rowHeight, epicColor, chartLeftOffset = 0}
                     variant="caption"
                     sx={{color: 'text.secondary', fontWeight: 'bold', display: 'block', mt: 0.5}}
                 >
-                    🔒 Locked to sprint (active/closed)
+                    🔒 Locked (active/closed, or future pinned date)
                 </Typography>
             )}
             <Box sx={{mt: 1, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 0.5}}>

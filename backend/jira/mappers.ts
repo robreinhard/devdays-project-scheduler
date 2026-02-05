@@ -10,15 +10,19 @@ import type {
   JiraProjectResponse,
   JiraBoardResponse,
   JiraIssueLink,
+  OtherTicket,
 } from '@/shared/types';
 
 /**
  * Field configuration for mapping custom fields
  */
-interface FieldConfig {
+export interface FieldConfig {
   devDays: string;
   sprint: string;
   sprintPointEstimate?: string; // Optional: manager/tech lead estimate for unpointed tickets
+  epicLink: string;
+  plannedStartDate?: string; // Optional: custom field to write scheduled start date
+  plannedEndDate?: string; // Optional: custom field to write scheduled end date
 }
 
 /**
@@ -215,3 +219,39 @@ export const mapToBoard = (board: JiraBoardResponse): JiraBoard => ({
  */
 export const mapToBoards = (boards: JiraBoardResponse[]): JiraBoard[] =>
   boards.map(mapToBoard);
+
+/**
+ * Map a JIRA issue to an OtherTicket (not in selected epics)
+ */
+export const mapToOtherTicket = (
+  issue: JiraIssueResponse,
+  sprintId: number,
+  sprintName: string,
+  fieldConfig: FieldConfig
+): OtherTicket => {
+  const devDaysValue = issue.fields[fieldConfig.devDays];
+  const hasEstimate = typeof devDaysValue === 'number' && devDaysValue > 0;
+
+  // Extract epic key from either parent or epic link field
+  const epicLinkField = issue.fields[fieldConfig.epicLink] as string | { key?: string } | null | undefined;
+  let epicKey: string | null = issue.fields.parent?.key ?? null;
+  if (!epicKey && epicLinkField) {
+    if (typeof epicLinkField === 'string') {
+      epicKey = epicLinkField;
+    } else if (typeof epicLinkField === 'object' && 'key' in epicLinkField && typeof epicLinkField.key === 'string') {
+      epicKey = epicLinkField.key;
+    }
+  }
+
+  return {
+    key: issue.key,
+    summary: issue.fields.summary,
+    status: issue.fields.status?.name ?? 'Unknown',
+    devDays: hasEstimate ? devDaysValue : DEFAULT_DEV_DAYS,
+    sprintId,
+    sprintName,
+    epicKey,
+    epicSummary: null,  // Will be populated by API if epic exists
+    isMissingEstimate: !hasEstimate,
+  };
+};

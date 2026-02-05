@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getJiraClient, mapToEpic, mapToTickets, mapToSprints } from '@/backend/jira';
-import type { JiraEpic, JiraTicket, JiraSprint } from '@/shared/types';
+import { getJiraClient, mapToEpic, mapToTickets, mapToSprints, mapToOtherTicket } from '@/backend/jira';
+import type { JiraEpic, JiraTicket, JiraSprint, OtherTicket } from '@/shared/types';
 
 interface DataRequest {
   epicKeys: string[];
@@ -14,6 +14,7 @@ export interface GanttDataResponse {
   sprints: JiraSprint[];
   doneStatuses: string[];
   activeSprints: JiraSprint[]; // All active sprints from the board (for locking even if not selected)
+  otherTickets: OtherTicket[]; // Tickets in future sprints not in selected epics
 }
 
 export const POST = async (request: NextRequest) => {
@@ -85,12 +86,46 @@ export const POST = async (request: NextRequest) => {
       );
     }
 
+    // Get future sprints and fetch tickets not in selected epics
+    const futureSprintIds = selectedSprints
+      .filter(s => s.state === 'future')
+      .map(s => s.id);
+
+    const otherTickets: OtherTicket[] = [];
+    const epicSummaryCache = new Map<string, string>();
+
+    for (const sprintId of futureSprintIds) {
+      const sprint = selectedSprints.find(s => s.id === sprintId)!;
+      const response = await client.getSprintTicketsExcludingEpics(sprintId, epicKeys);
+
+      for (const issue of response.issues) {
+        const ticket = mapToOtherTicket(issue, sprintId, sprint.name, fieldConfig);
+
+        // Fetch epic summary if ticket has an epic we haven't cached
+        if (ticket.epicKey && !epicSummaryCache.has(ticket.epicKey)) {
+          try {
+            const epicIssue = await client.getIssue(ticket.epicKey);
+            epicSummaryCache.set(ticket.epicKey, epicIssue.fields.summary);
+          } catch {
+            epicSummaryCache.set(ticket.epicKey, '(Unknown Epic)');
+          }
+        }
+
+        if (ticket.epicKey) {
+          ticket.epicSummary = epicSummaryCache.get(ticket.epicKey) ?? null;
+        }
+
+        otherTickets.push(ticket);
+      }
+    }
+
     const response: GanttDataResponse = {
       epics,
       tickets: allTickets,
       sprints: selectedSprints,
       doneStatuses,
       activeSprints,
+      otherTickets,
     };
 
     return NextResponse.json(response);

@@ -1,6 +1,22 @@
 import type { JiraEpic, JiraTicket, JiraSprint } from './jira';
 
 /**
+ * Ticket in a sprint but not part of any selected epic
+ * May have an epic (just not selected) or no epic at all
+ */
+export interface OtherTicket {
+  key: string;
+  summary: string;
+  status: string;
+  devDays: number;
+  sprintId: number;
+  sprintName: string;
+  epicKey: string | null;     // Epic key if has one, null if orphan
+  epicSummary: string | null; // Epic summary for display
+  isMissingEstimate: boolean;
+}
+
+/**
  * Simplified ticket representation for aggregate blocks (Previous/Future)
  */
 export interface AggregateTicket {
@@ -98,6 +114,7 @@ export interface GanttData {
   projectEndDate: string;
   totalDevDays: number;
   totalDays: number; // Work days (weekends always excluded)
+  otherTickets?: OtherTicket[];  // Tickets in future sprints not in selected epics
 }
 
 /**
@@ -112,4 +129,30 @@ export interface SchedulingInput {
   selectedSprintIds?: number[]; // Sprint IDs selected for scheduling (used to determine Previous/Future blocks)
   doneStatuses?: string[]; // Status names from board config that indicate "done" (from statusCategory.key === 'done')
   activeSprints?: JiraSprint[]; // All active sprints from the board (for locking tickets even if sprint not selected)
+}
+
+/**
+ * Single ticket update for slotting to JIRA
+ */
+export interface TicketSlotUpdate {
+  ticketKey: string;
+  sprintId: number;
+  plannedStartDate?: string;  // ISO date string
+  plannedEndDate?: string;    // ISO date string
+}
+
+/**
+ * Request body for slot tickets API
+ */
+export interface SlotTicketsRequest {
+  updates: TicketSlotUpdate[];
+}
+
+/**
+ * Response from slot tickets API
+ */
+export interface SlotTicketsResponse {
+  success: boolean;
+  updatedCount: number;
+  errors: Array<{ ticketKey: string; error: string }>;
 }

@@ -19,6 +19,9 @@ interface JiraConfig {
   fieldDevDays: string;
   fieldSprint: string;
   fieldSprintPointEstimate?: string; // Optional: manager/tech lead estimate for unpointed tickets
+  fieldEpicLink: string; // Custom field ID for Epic Link (e.g., customfield_10014)
+  fieldPlannedStartDate?: string; // Optional: custom field to write scheduled start date
+  fieldPlannedEndDate?: string; // Optional: custom field to write scheduled end date
   boardId: string;
 }
 
@@ -32,6 +35,9 @@ export const getJiraConfig = (): JiraConfig => {
   const fieldDevDays = process.env.JIRA_FIELD_DEV_DAYS;
   const fieldSprint = process.env.JIRA_FIELD_SPRINT ?? 'customfield_10020';
   const fieldSprintPointEstimate = process.env.JIRA_FIELD_SPRINT_POINT_ESTIMATE; // Optional
+  const fieldEpicLink = process.env.JIRA_FIELD_EPIC_LINK ?? 'customfield_10014';
+  const fieldPlannedStartDate = process.env.JIRA_FIELD_PLANNED_START_DATE; // Optional
+  const fieldPlannedEndDate = process.env.JIRA_FIELD_PLANNED_END_DATE; // Optional
   const boardId = process.env.JIRA_BOARD_ID;
 
   if (!baseUrl || !email || !apiToken || !fieldDevDays || !boardId) {
@@ -48,6 +54,9 @@ export const getJiraConfig = (): JiraConfig => {
     fieldDevDays,
     fieldSprint,
     fieldSprintPointEstimate,
+    fieldEpicLink,
+    fieldPlannedStartDate,
+    fieldPlannedEndDate,
     boardId,
   };
 };
@@ -93,6 +102,11 @@ export class JiraClient {
       throw new Error(`JIRA API error (${response.status}): ${errorText}`);
     }
 
+    // Handle 204 No Content (e.g., from PUT requests)
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
     return response.json() as Promise<T>;
   };
 
@@ -109,6 +123,7 @@ export class JiraClient {
       'issuelinks',
       this.config.fieldDevDays,
       this.config.fieldSprint,
+      this.config.fieldEpicLink,
       ...(this.config.fieldSprintPointEstimate ? [this.config.fieldSprintPointEstimate] : []),
     ];
 
@@ -330,7 +345,39 @@ export class JiraClient {
     devDays: this.config.fieldDevDays,
     sprint: this.config.fieldSprint,
     sprintPointEstimate: this.config.fieldSprintPointEstimate,
+    epicLink: this.config.fieldEpicLink,
+    plannedStartDate: this.config.fieldPlannedStartDate,
+    plannedEndDate: this.config.fieldPlannedEndDate,
   });
+
+  /**
+   * Update an issue's sprint and optional planned dates
+   */
+  updateIssue = async (
+    issueKey: string,
+    fields: Record<string, unknown>
+  ): Promise<void> => {
+    await this.fetch(`/rest/api/3/issue/${issueKey}`, {
+      method: 'PUT',
+      body: JSON.stringify({ fields }),
+    });
+  };
+
+  /**
+   * Get tickets in a sprint that are NOT linked to any of the specified epics
+   */
+  getSprintTicketsExcludingEpics = async (sprintId: number, epicKeys: string[]): Promise<JiraSearchResponse> => {
+    let jql = `sprint = ${sprintId}`;
+
+    if (epicKeys.length > 0) {
+      // Build exclusion clause for epic links and parent relationships
+      const epicList = epicKeys.join(', ');
+      jql += ` AND NOT ("Epic Link" in (${epicList}) OR parent in (${epicList}))`;
+    }
+
+    jql += ' ORDER BY key ASC';
+    return this.searchIssues(jql);
+  };
 }
 
 /**

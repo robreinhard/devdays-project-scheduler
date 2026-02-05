@@ -75,6 +75,7 @@ export interface ScheduledTicket extends JiraTicket {
   criticalPathWeight: number; // Total dev days of this ticket + all downstream tickets
   isOnCriticalPath: boolean; // True if this ticket is on the critical path
   hasConstraintViolation?: boolean; // True if ticket couldn't fit in its locked sprint (capacity overflow)
+  isLocked?: boolean; // True if ticket is in an active/closed sprint and cannot be moved
 }
 
 /**

@@ -10,4 +10,6 @@ export {
   mapToSprints,
   mapToProjects,
   mapToBoards,
+  mapToOtherTicket,
 } from './mappers';
+export type { FieldConfig } from './mappers';

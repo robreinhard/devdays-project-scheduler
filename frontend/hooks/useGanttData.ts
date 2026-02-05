@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import type { GanttData, SprintCapacity, JiraEpic, JiraTicket, JiraSprint, SprintDateOverride } from '@/shared/types';
+import type { GanttData, SprintCapacity, JiraEpic, JiraTicket, JiraSprint, SprintDateOverride, OtherTicket } from '@/shared/types';
 import { scheduleTickets } from '@/shared/scheduler';
 import { applySprintDateOverrides, autoAdjustSprintDates } from '@/shared/utils/sprints';
 
@@ -11,6 +11,7 @@ interface CachedData {
   sprints: JiraSprint[];
   doneStatuses: string[];
   activeSprints: JiraSprint[];
+  otherTickets: OtherTicket[];
   epicKeys: string[];
   sprintIds: number[];
   boardId?: number;
@@ -64,6 +65,7 @@ export const useGanttData = (): UseGanttDataResult => {
       let sprints: JiraSprint[];
       let doneStatuses: string[];
       let activeSprints: JiraSprint[];
+      let otherTickets: OtherTicket[];
 
       if (needsFetch) {
         // Fetch data from API
@@ -84,9 +86,10 @@ export const useGanttData = (): UseGanttDataResult => {
         sprints = data.sprints;
         doneStatuses = data.doneStatuses;
         activeSprints = data.activeSprints;
+        otherTickets = data.otherTickets ?? [];
 
         // Cache the data
-        cachedDataRef.current = { epics, tickets, sprints, doneStatuses, activeSprints, epicKeys, sprintIds, boardId };
+        cachedDataRef.current = { epics, tickets, sprints, doneStatuses, activeSprints, otherTickets, epicKeys, sprintIds, boardId };
       } else {
         // Use cached data
         epics = cached.epics;
@@ -94,6 +97,7 @@ export const useGanttData = (): UseGanttDataResult => {
         sprints = cached.sprints;
         doneStatuses = cached.doneStatuses;
         activeSprints = cached.activeSprints;
+        otherTickets = cached.otherTickets;
       }
 
       // Apply auto-adjust and sprint date overrides before scheduling
@@ -112,7 +116,11 @@ export const useGanttData = (): UseGanttDataResult => {
         activeSprints,
       });
 
-      setGanttData(result);
+      // Attach other tickets to result
+      setGanttData({
+        ...result,
+        otherTickets,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);

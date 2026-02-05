@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -17,7 +17,11 @@ import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Link from '@mui/material/Link';
-import type { GanttData, JiraSprint, ScheduledTicket } from '@/shared/types';
+import Tooltip from '@mui/material/Tooltip';
+import TextField from '@mui/material/TextField';
+import Alert from '@mui/material/Alert';
+import type { GanttData, JiraSprint, ScheduledTicket, CommitType, TicketSlotUpdate } from '@/shared/types';
+import { parseDate } from '@/shared/utils/dates';
 
 // JIRA base URL from environment
 const JIRA_BASE_URL = process.env.NEXT_PUBLIC_JIRA_BASE_URL || '';
@@ -30,12 +34,14 @@ interface SlotTicketsDialogProps {
   open: boolean;
   onClose: () => void;
   ganttData: GanttData | null;
-  sprints: JiraSprint[];
 }
 
 interface TicketSlotChange {
   ticket: ScheduledTicket;
   epicKey: string;
+  epicSummary: string;
+  commitType: CommitType;
+  priorityOverride?: number;
   currentSprintId: number | null;
   currentSprintName: string | null;
   newSprintId: number;
@@ -45,25 +51,42 @@ interface TicketSlotChange {
   hasSprintChange: boolean;
 }
 
-const SlotTicketsDialog = ({ open, onClose, ganttData, sprints }: SlotTicketsDialogProps) => {
-  // Build sprint lookup
+// Format priority label (e.g., "Commit-1", "Stretch", "None")
+const formatPriorityLabel = (commitType: CommitType, priorityOverride?: number): string => {
+  if (commitType === 'none') return '-';
+  const base = commitType.charAt(0).toUpperCase() + commitType.slice(1);
+  return priorityOverride !== undefined ? `${base}-${priorityOverride}` : base;
+};
+
+// Get sort key for priority (lower = higher priority)
+const getPrioritySortKey = (commitType: CommitType, priorityOverride?: number): number => {
+  const tierScore = commitType === 'commit' ? 0 : commitType === 'stretch' ? 1000 : 2000;
+  const overrideScore = priorityOverride ?? 999;
+  return tierScore + overrideScore;
+};
+
+const SlotTicketsDialog = ({ open, onClose, ganttData }: SlotTicketsDialogProps) => {
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [isSlotting, setIsSlotting] = useState(false);
+  const [slotResult, setSlotResult] = useState<{
+    success: boolean;
+    updatedCount: number;
+    errors: Array<{ ticketKey: string; error: string }>;
+  } | null>(null);
+
+  // Build sprint lookup from ganttData.sprints (which has adjusted dates from sidebar)
   const sprintLookup = useMemo(() => {
     const lookup = new Map<number, JiraSprint>();
-    for (const sprint of sprints) {
-      lookup.set(sprint.id, sprint);
-    }
-    // Also add sprints from ganttData if available
     if (ganttData) {
       for (const sprint of ganttData.sprints) {
-        if (!lookup.has(sprint.id)) {
-          lookup.set(sprint.id, sprint);
-        }
+        lookup.set(sprint.id, sprint);
       }
     }
     return lookup;
-  }, [sprints, ganttData]);
+  }, [ganttData]);
 
-  // Get ticket changes grouped by future sprint
+  // Get ticket changes grouped by future sprint, sorted by epic priority
   const changesBySprintId = useMemo(() => {
     if (!ganttData) return new Map<number, TicketSlotChange[]>();
 
@@ -84,6 +107,9 @@ const SlotTicketsDialog = ({ open, onClose, ganttData, sprints }: SlotTicketsDia
         const change: TicketSlotChange = {
           ticket,
           epicKey: epic.key,
+          epicSummary: epic.summary,
+          commitType: epic.commitType,
+          priorityOverride: epic.priorityOverride,
           currentSprintId,
           currentSprintName: currentSprint?.name ?? null,
           newSprintId: ticket.sprintId,
@@ -100,6 +126,17 @@ const SlotTicketsDialog = ({ open, onClose, ganttData, sprints }: SlotTicketsDia
       }
     }
 
+    // Sort tickets within each sprint by epic priority
+    for (const [sprintId, tickets] of changes) {
+      tickets.sort((a, b) => {
+        const aPriority = getPrioritySortKey(a.commitType, a.priorityOverride);
+        const bPriority = getPrioritySortKey(b.commitType, b.priorityOverride);
+        if (aPriority !== bPriority) return aPriority - bPriority;
+        // Secondary sort by epic key
+        return a.epicKey.localeCompare(b.epicKey);
+      });
+    }
+
     return changes;
   }, [ganttData, sprintLookup]);
 
@@ -113,11 +150,10 @@ const SlotTicketsDialog = ({ open, onClose, ganttData, sprints }: SlotTicketsDia
     });
   }, [changesBySprintId, sprintLookup]);
 
-  // Format date for display
+  // Format date for display (using Luxon for consistent timezone handling)
   const formatDate = (dateStr: string): string => {
     if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return parseDate(dateStr).toFormat('MMM d, yyyy');
   };
 
   // Count total tickets and changes
@@ -136,6 +172,50 @@ const SlotTicketsDialog = ({ open, onClose, ganttData, sprints }: SlotTicketsDia
     }
     return count;
   }, [changesBySprintId]);
+
+  const handleSlotTickets = async () => {
+    if (confirmText.toLowerCase() !== 'slot tickets') return;
+
+    setIsSlotting(true);
+    setSlotResult(null);
+
+    // Collect all ticket updates from future sprints
+    const updates: TicketSlotUpdate[] = [];
+    for (const tickets of changesBySprintId.values()) {
+      for (const change of tickets) {
+        updates.push({
+          ticketKey: change.ticket.key,
+          sprintId: change.newSprintId,
+          plannedStartDate: change.newStartDate,
+          plannedEndDate: change.newEndDate,
+        });
+      }
+    }
+
+    try {
+      const response = await fetch('/api/tickets/slot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      });
+
+      const result = await response.json();
+      setSlotResult(result);
+
+      if (result.success) {
+        setShowConfirmation(false);
+        setConfirmText('');
+      }
+    } catch (error) {
+      setSlotResult({
+        success: false,
+        updatedCount: 0,
+        errors: [{ ticketKey: 'ALL', error: String(error) }],
+      });
+    } finally {
+      setIsSlotting(false);
+    }
+  };
 
   return (
     <Dialog
@@ -188,47 +268,74 @@ const SlotTicketsDialog = ({ open, onClose, ganttData, sprints }: SlotTicketsDia
                   <Table size="small">
                     <TableHead>
                       <TableRow sx={{ bgcolor: 'grey.100' }}>
-                        <TableCell sx={{ fontWeight: 'bold', width: 120 }}>Ticket</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: 100 }}>Epic</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: 80 }}>Priority</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: 110 }}>Ticket</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Summary</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', width: 140 }}>Current Sprint</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', width: 140 }}>New Sprint</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', width: 110 }}>New Start</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', width: 110 }}>New End</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: 130 }}>Current Sprint</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: 130 }}>New Sprint</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: 100 }}>New Start</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: 100 }}>New End</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {tickets.map((change) => {
                         const ticketUrl = getJiraUrl(change.ticket.key);
+                        const epicUrl = getJiraUrl(change.epicKey);
                         const hasChange = change.hasSprintChange;
+                        const priorityLabel = formatPriorityLabel(change.commitType, change.priorityOverride);
 
                         return (
                           <TableRow key={change.ticket.key} hover>
+                            <TableCell>
+                              <Tooltip title={change.epicSummary} arrow placement="top">
+                                {epicUrl ? (
+                                  <Link
+                                    href={epicUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    sx={{ fontWeight: 500, fontSize: 12 }}
+                                  >
+                                    {change.epicKey}
+                                  </Link>
+                                ) : (
+                                  <Typography variant="body2" fontWeight={500} sx={{ fontSize: 12 }}>
+                                    {change.epicKey}
+                                  </Typography>
+                                )}
+                              </Tooltip>
+                            </TableCell>
+                            <TableCell>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontSize: 11,
+                                  fontWeight: change.commitType !== 'none' ? 500 : undefined,
+                                  color: change.commitType === 'commit' ? 'primary.main' :
+                                         change.commitType === 'stretch' ? 'secondary.main' : 'text.secondary',
+                                }}
+                              >
+                                {priorityLabel}
+                              </Typography>
+                            </TableCell>
                             <TableCell>
                               {ticketUrl ? (
                                 <Link
                                   href={ticketUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  sx={{ fontWeight: 500 }}
+                                  sx={{ fontWeight: 500, fontSize: 12 }}
                                 >
                                   {change.ticket.key}
                                 </Link>
                               ) : (
-                                <Typography variant="body2" fontWeight={500}>
+                                <Typography variant="body2" fontWeight={500} sx={{ fontSize: 12 }}>
                                   {change.ticket.key}
                                 </Typography>
                               )}
                             </TableCell>
                             <TableCell>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  maxWidth: 300,
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
+                              <Typography variant="body2" sx={{ fontSize: 12 }}>
                                 {change.ticket.summary}
                               </Typography>
                             </TableCell>
@@ -236,10 +343,11 @@ const SlotTicketsDialog = ({ open, onClose, ganttData, sprints }: SlotTicketsDia
                               sx={{
                                 bgcolor: hasChange ? 'error.lighter' : undefined,
                                 color: hasChange ? 'error.dark' : undefined,
+                                fontSize: 12,
                               }}
                             >
                               {change.currentSprintName ?? (
-                                <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                                <Typography variant="body2" color="text.secondary" fontStyle="italic" sx={{ fontSize: 12 }}>
                                   Unassigned
                                 </Typography>
                               )}
@@ -249,14 +357,15 @@ const SlotTicketsDialog = ({ open, onClose, ganttData, sprints }: SlotTicketsDia
                                 bgcolor: hasChange ? 'success.lighter' : undefined,
                                 color: hasChange ? 'success.dark' : undefined,
                                 fontWeight: hasChange ? 500 : undefined,
+                                fontSize: 12,
                               }}
                             >
                               {change.newSprintName}
                             </TableCell>
-                            <TableCell>
+                            <TableCell sx={{ fontSize: 12 }}>
                               {formatDate(change.newStartDate)}
                             </TableCell>
-                            <TableCell>
+                            <TableCell sx={{ fontSize: 12 }}>
                               {formatDate(change.newEndDate)}
                             </TableCell>
                           </TableRow>
@@ -273,19 +382,149 @@ const SlotTicketsDialog = ({ open, onClose, ganttData, sprints }: SlotTicketsDia
             );
           })
         )}
+
+        {/* Other Tickets Section */}
+        {ganttData?.otherTickets && ganttData.otherTickets.length > 0 && (
+          <Box sx={{ mt: 4 }}>
+            <Divider sx={{ mb: 3 }} />
+            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography variant="subtitle1" fontWeight="bold" color="text.secondary">
+                Other Tickets in Future Sprints
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                ({ganttData.otherTickets.length} tickets not in selected epics)
+              </Typography>
+            </Box>
+
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                    <TableCell sx={{ fontWeight: 'bold', width: 100 }}>Epic</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', width: 110 }}>Ticket</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Summary</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', width: 100 }}>Status</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', width: 130 }}>Sprint</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', width: 70 }}>Points</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {ganttData.otherTickets.map((ticket) => {
+                    const ticketUrl = getJiraUrl(ticket.key);
+                    const epicUrl = ticket.epicKey ? getJiraUrl(ticket.epicKey) : null;
+                    return (
+                      <TableRow key={ticket.key} hover>
+                        <TableCell>
+                          {ticket.epicKey ? (
+                            <Tooltip title={ticket.epicSummary ?? ''} arrow>
+                              {epicUrl ? (
+                                <Link
+                                  href={epicUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  sx={{ fontSize: 12 }}
+                                >
+                                  {ticket.epicKey}
+                                </Link>
+                              ) : (
+                                <Typography sx={{ fontSize: 12 }}>{ticket.epicKey}</Typography>
+                              )}
+                            </Tooltip>
+                          ) : (
+                            <Typography color="text.secondary" fontStyle="italic" sx={{ fontSize: 12 }}>
+                              No Epic
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {ticketUrl ? (
+                            <Link
+                              href={ticketUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              sx={{ fontWeight: 500, fontSize: 12 }}
+                            >
+                              {ticket.key}
+                            </Link>
+                          ) : (
+                            <Typography fontWeight={500} sx={{ fontSize: 12 }}>{ticket.key}</Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Typography sx={{ fontSize: 12 }}>{ticket.summary}</Typography>
+                        </TableCell>
+                        <TableCell sx={{ fontSize: 12 }}>{ticket.status}</TableCell>
+                        <TableCell sx={{ fontSize: 12 }}>{ticket.sprintName}</TableCell>
+                        <TableCell sx={{ fontSize: 12 }}>
+                          {ticket.devDays}
+                          {ticket.isMissingEstimate && <span style={{ fontSize: 10, color: '#888' }}> (est)</span>}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        )}
       </DialogContent>
+
+      {slotResult && (
+        <Alert
+          severity={slotResult.success ? 'success' : 'error'}
+          sx={{ mx: 3, mb: 2 }}
+          onClose={() => setSlotResult(null)}
+        >
+          {slotResult.success
+            ? `Successfully updated ${slotResult.updatedCount} tickets in JIRA`
+            : `Updated ${slotResult.updatedCount} tickets. ${slotResult.errors.length} failed: ${slotResult.errors.map(e => e.ticketKey).join(', ')}`
+          }
+        </Alert>
+      )}
 
       <DialogActions sx={{ px: 3, py: 2 }}>
         <Button onClick={onClose} variant="outlined">
           Close
         </Button>
-        <Button
-          variant="contained"
-          disabled
-          title="JIRA integration coming soon"
-        >
-          Update JIRA (Coming Soon)
-        </Button>
+
+        {!showConfirmation ? (
+          <Button
+            variant="contained"
+            onClick={() => setShowConfirmation(true)}
+            disabled={totalTickets === 0}
+          >
+            Slot Tickets in JIRA
+          </Button>
+        ) : (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="body2" color="warning.main" sx={{ fontWeight: 500 }}>
+              Slotting tickets updates all tickets in dialog in JIRA
+            </Typography>
+            <TextField
+              size="small"
+              placeholder='Type "slot tickets" to confirm'
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              sx={{ width: 220 }}
+              disabled={isSlotting}
+            />
+            <Button
+              variant="contained"
+              color="warning"
+              onClick={handleSlotTickets}
+              disabled={confirmText.toLowerCase() !== 'slot tickets' || isSlotting}
+            >
+              {isSlotting ? 'Slotting...' : 'Confirm Slot'}
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => { setShowConfirmation(false); setConfirmText(''); }}
+              disabled={isSlotting}
+            >
+              Cancel
+            </Button>
+          </Box>
+        )}
       </DialogActions>
     </Dialog>
   );

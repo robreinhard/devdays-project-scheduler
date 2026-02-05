@@ -284,7 +284,6 @@ const HomeContent = () => {
         open={slotDialogOpen}
         onClose={() => setSlotDialogOpen(false)}
         ganttData={ganttData}
-        sprints={ganttData?.sprints ?? []}
       />
     </Box>
   );

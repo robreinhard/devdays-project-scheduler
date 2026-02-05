@@ -31,6 +31,10 @@ export type {
   ScheduledEpic,
   GanttData,
   SchedulingInput,
+  OtherTicket,
+  TicketSlotUpdate,
+  SlotTicketsRequest,
+  SlotTicketsResponse,
 } from './scheduling';
 
 // App types

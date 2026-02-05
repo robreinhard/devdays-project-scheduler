@@ -13,15 +13,15 @@ The algorithm schedules tickets from multiple epics into sprints while respectin
 
 ## Inputs
 
-| Input | Description |
-|-------|-------------|
-| `epics` | List of epics with their `commitType` ('commit', 'stretch', 'none') and optional `priorityOverride` |
-| `tickets` | All tickets with `devDays`, `blockedBy`, `sprintIds`, and `status` |
-| `sprints` | Selected sprints with start/end dates and state ('active', 'closed', 'future') |
-| `sprintCapacities` | Capacity configuration per sprint (dev days per day) |
-| `maxDevelopers` | Default capacity (points per day) |
-| `doneStatuses` | Status names that indicate "done" (from board configuration) |
-| `activeSprints` | All active sprints from the board (even if not selected) |
+| Input              | Description                                                                                         |
+|--------------------|-----------------------------------------------------------------------------------------------------|
+| `epics`            | List of epics with their `commitType` ('commit', 'stretch', 'none') and optional `priorityOverride` |
+| `tickets`          | All tickets with `devDays`, `blockedBy`, `sprintIds`, and `status`                                  |
+| `sprints`          | Selected sprints with start/end dates and state ('active', 'closed', 'future')                      |
+| `sprintCapacities` | Capacity configuration per sprint (dev days per day)                                                |
+| `maxDevelopers`    | Default capacity (points per day)                                                                   |
+| `doneStatuses`     | Status names that indicate "done" (from board configuration)                                        |
+| `activeSprints`    | All active sprints from the board (even if not selected)                                            |
 
 ## Pre-Processing
 
@@ -285,12 +285,12 @@ If a pinned ticket has blockers, the algorithm verifies that all blockers finish
 
 ## Constraints & Edge Cases
 
-| Scenario | Behavior |
-|----------|----------|
-| Ticket > 10 points | Error thrown (too large for sprint) |
-| Ticket can't fit in locked sprint | Placed with `hasConstraintViolation` flag, may overflow |
-| Circular dependencies | Tickets go to Future block |
-| Blocker in Future block | Dependent ticket also goes to Future block |
-| No capacity remaining | Tickets go to Future block |
-| Ticket in active sprint not selected | Goes to Previous block |
-| Cross-sprint dependency | Dependent waits for blocker's end day before starting |
+| Scenario                             | Behavior                                                |
+|--------------------------------------|---------------------------------------------------------|
+| Ticket > 10 points                   | Error thrown (too large for sprint)                     |
+| Ticket can't fit in locked sprint    | Placed with `hasConstraintViolation` flag, may overflow |
+| Circular dependencies                | Tickets go to Future block                              |
+| Blocker in Future block              | Dependent ticket also goes to Future block              |
+| No capacity remaining                | Tickets go to Future block                              |
+| Ticket in active sprint not selected | Goes to Previous block                                  |
+| Cross-sprint dependency              | Dependent waits for blocker's end day before starting   |

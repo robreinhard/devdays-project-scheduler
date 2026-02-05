@@ -1230,6 +1230,7 @@ export const scheduleTickets = (input: SchedulingInput): GanttData => {
           parallelGroup: topoTicket?.level ?? 0,
           criticalPathWeight: topoTicket?.downstreamWeight ?? ticket.devDays,
           isOnCriticalPath: false,
+          isLocked: true,
         });
 
         scheduledTicketKeys.add(ticket.key);
